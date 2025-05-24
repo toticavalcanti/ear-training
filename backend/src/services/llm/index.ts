@@ -3,6 +3,8 @@ import { LLMProvider, LLMGenerationOptions } from '../../types/llm';
 import { DeepseekProvider } from './providers/deepseek';
 import { LlamaProvider } from './providers/llamaProvider';
 import { GeminiProvider } from './providers/geminiProvider';
+import { HuggingFaceProvider } from './providers/huggingfaceProvider';
+import { GroqProvider } from './providers/groqProvider';  // ADICIONADO
 import { MIDISequence } from '../../types/midi';
 
 // Implementação do serviço LLM
@@ -10,8 +12,16 @@ export class LLMService {
   private static provider: LLMProvider;
   
   // Inicialização com provider configurável
-  static initialize(providerType: string = 'deepseek'): void {
+  static initialize(providerType: string = 'groq'): void {
     switch(providerType.toLowerCase()) {
+      case 'groq':  // ADICIONADO
+        this.provider = new GroqProvider();
+        console.log('🚀 LLM Service initialized with Groq (FREE & FAST)');
+        break;
+      case 'huggingface':
+        this.provider = new HuggingFaceProvider();
+        console.log('🤗 LLM Service initialized with Hugging Face (FREE)');
+        break;
       case 'deepseek':
         this.provider = new DeepseekProvider();
         break;
@@ -22,9 +32,9 @@ export class LLMService {
         this.provider = new GeminiProvider();
         break;
       default:
-        this.provider = new DeepseekProvider();
+        this.provider = new GroqProvider();  // MUDADO: default agora é Groq
+        console.log('🚀 LLM Service initialized with Groq (DEFAULT FREE & FAST)');
     }
-    console.log(`LLM Service initialized with provider: ${providerType}`);
   }
   
   // Gerar sequência MIDI para exercício

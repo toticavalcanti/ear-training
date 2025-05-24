@@ -11,6 +11,9 @@ import userRoutes from './routes/userRoutes';
 import stripeRoutes from './routes/stripeRoutes';
 // Removida a importação de testRoutes
 
+// LLM Service
+import { LLMService } from './services/llm';
+
 // Configuração
 dotenv.config();
 const app = express();
@@ -30,7 +33,11 @@ app.use(express.json());
 
 // Conexão com o MongoDB
 mongoose.connect(process.env.MONGODB_URI || '')
-  .then(() => console.log('Conectado ao MongoDB'))
+  .then(() => {
+    console.log('Conectado ao MongoDB');
+    // Inicializar LLM Service após conexão com BD
+    LLMService.initialize(process.env.LLM_PROVIDER || 'groq');
+  })
   .catch(err => console.error('Erro ao conectar ao MongoDB:', err));
 
 // Rotas
