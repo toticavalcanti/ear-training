@@ -1,13 +1,22 @@
-//src\models\User.ts
+//src/models/User.ts
 import mongoose, { Document, Schema } from 'mongoose';
 import bcryptjs from 'bcryptjs';
 
 export interface IUser extends Document {
   name: string;
   email: string;
-  passwordHash: string;
+  passwordHash?: string; // Agora opcional para Google users
   subscription: 'free' | 'premium';
   lastActive: Date;
+  
+  // 🆕 CAMPOS GOOGLE OAUTH:
+  googleId?: string;
+  avatar?: string;
+  
+  // 🆕 TIMESTAMPS (adicionados pelo Mongoose)
+  createdAt: Date;
+  updatedAt: Date;
+  
   comparePassword: (password: string) => Promise<boolean>;
 }
 
@@ -27,7 +36,10 @@ const UserSchema = new Schema<IUser>({
   },
   passwordHash: {
     type: String,
-    required: [true, 'Senha é obrigatória'],
+    // Senha obrigatória apenas para usuários que não são do Google
+    required: function(this: IUser) {
+      return !this.googleId; // Se não tem googleId, senha é obrigatória
+    },
   },
   subscription: {
     type: String,
@@ -38,13 +50,38 @@ const UserSchema = new Schema<IUser>({
     type: Date,
     default: Date.now,
   },
+  
+  // 🆕 NOVOS CAMPOS GOOGLE OAUTH:
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true, // Permite null/undefined mas garante unicidade quando existe
+  },
+  avatar: {
+    type: String,
+  },
 }, {
-  timestamps: true,
+  timestamps: true, // Adiciona createdAt e updatedAt automaticamente
+  suppressReservedKeysWarning: true, // Remove warning do mongoose
 });
+
+// Index para performance nas consultas Google
+UserSchema.index({ googleId: 1 });
 
 // Método para comparar senha
 UserSchema.methods.comparePassword = async function(password: string): Promise<boolean> {
+  if (!this.passwordHash) {
+    return false; // Usuários do Google não têm senha
+  }
   return await bcryptjs.compare(password, this.passwordHash);
 };
+
+// Validação customizada: deve ter senha OU googleId
+UserSchema.pre('validate', function(next) {
+  if (!this.passwordHash && !this.googleId) {
+    this.invalidate('passwordHash', 'Usuário deve ter senha ou Google ID');
+  }
+  next();
+});
 
 export default mongoose.model<IUser>('User', UserSchema);

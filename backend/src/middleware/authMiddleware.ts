@@ -1,54 +1,55 @@
-// src/middleware/authMiddleware.ts
+// src/middleware/authMiddleware.ts - VERSÃO FINAL COM TODOS OS EXPORTS
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import User from '../models/User';
 
-interface UserPayload {
-  id: string;
+// Interface para adicionar userId ao Request
+export interface AuthRequest extends Request {
+  userId?: string;
 }
 
-// Middleware para proteger rotas
-export const protect = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+// Interface para o payload do JWT
+interface JwtPayload {
+  userId: string;
+  iat?: number;
+  exp?: number;
+}
+
+// MIDDLEWARE DE AUTENTICAÇÃO
+export const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction): void => {
   try {
-    let token;
-
-    // Verificar se o token está no header
-    if (
-      req.headers.authorization &&
-      req.headers.authorization.startsWith('Bearer')
-    ) {
-      // Pegar token do header
-      token = req.headers.authorization.split(' ')[1];
-    }
-
-    // Verificar se o token existe
-    if (!token) {
-      res.status(401).json({ message: 'Não autorizado, token não encontrado' });
-      return;
-    }
-
-    // Verificar token
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || 'default_secret'
-    ) as UserPayload;
-
-    // Adicionar usuário à requisição
-    const user = await User.findById(decoded.id).select('-passwordHash');
+    const authHeader = req.headers.authorization;
     
-    if (!user) {
-      res.status(401).json({ message: 'Não autorizado, usuário não encontrado' });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ message: 'Token não fornecido' });
       return;
     }
 
-    // Adicionar usuário ao request
-    (req as any).user = user;
+    const token = authHeader.substring(7);
+
+    if (!process.env.JWT_SECRET) {
+      res.status(500).json({ message: 'Erro de configuração do servidor' });
+      return;
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET) as JwtPayload;
+    req.userId = decoded.userId;
+    
     next();
   } catch (error) {
-    console.error('Erro no middleware de autenticação:', error);
-    res.status(401).json({ message: 'Não autorizado, token inválido' });
+    if (error instanceof jwt.TokenExpiredError) {
+      res.status(401).json({ message: 'Token expirado' });
+      return;
+    }
+    
+    if (error instanceof jwt.JsonWebTokenError) {
+      res.status(401).json({ message: 'Token inválido' });
+      return;
+    }
+    
+    res.status(401).json({ message: 'Falha na autenticação' });
   }
 };
 
-// Adicionar um alias para manter compatibilidade com código existente
-export const authMiddleware = protect;
+// EXPORT ALIASES PARA COMPATIBILIDADE
+export const protect = authMiddleware;  // Para userRoutes.ts
+export default authMiddleware;
