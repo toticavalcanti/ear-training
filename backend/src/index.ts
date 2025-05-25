@@ -31,8 +31,19 @@ app.use(cors({
 // IMPORTANTE: Configurar webhook do Stripe ANTES do express.json()
 app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
 
-// Middleware JSON para as demais rotas
-app.use(express.json());
+// CORREÇÃO: Middleware JSON para as demais rotas com mais opções
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// DEBUG MIDDLEWARE - ADICIONE ESTA LINHA TEMPORARIAMENTE
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path}`, {
+    headers: req.headers,
+    body: req.body,
+    contentType: req.get('Content-Type')
+  });
+  next();
+});
 
 // Conexão com o MongoDB
 mongoose.connect(process.env.MONGODB_URI || '')

@@ -25,7 +25,29 @@ router.get('/test', (req, res) => {
 // ===================================
 router.post('/submit', asyncHandler(async (req, res) => {
   try {
+    // DEBUG - REMOVA APÓS TESTAR
+    console.log('=== DEBUG GAMIFICATION SUBMIT ===');
+    console.log('Content-Type:', req.get('Content-Type'));
+    console.log('Headers:', req.headers);
+    console.log('Body:', req.body);
+    console.log('Body keys:', req.body ? Object.keys(req.body) : 'BODY É NULL/UNDEFINED');
+    
     const user = (req as any).user;
+    
+    // VALIDAÇÃO PARA REQ.BODY
+    if (!req.body || Object.keys(req.body).length === 0) {
+      console.log('❌ ERRO: req.body está vazio');
+      res.status(400).json({ 
+        message: 'Corpo da requisição vazio. Certifique-se de enviar Content-Type: application/json',
+        debug: {
+          contentType: req.get('Content-Type'),
+          bodyExists: !!req.body,
+          bodyKeys: req.body ? Object.keys(req.body) : []
+        }
+      });
+      return;
+    }
+    
     const { exerciseId, userAnswer, timeSpent, attempts = 1 } = req.body;
 
     // Validações básicas
