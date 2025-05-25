@@ -2,125 +2,105 @@
 import { MIDISequence } from '../types/midi';
 
 export class MidiHumanizer {
-  // Humaniza qualquer sequência MIDI
+  // VERSÃO ULTRA-CONSERVADORA - TIMING 100% PRESERVADO
   static humanize(midiSequence: MIDISequence): MIDISequence {
-    // Clonar para não modificar o original
+    console.log("🛡️ ULTRA-SAFE HUMANIZER: Preservação TOTAL do timing");
+    
+    // Clonar PROFUNDAMENTE para não modificar o original
     const humanized = JSON.parse(JSON.stringify(midiSequence)) as MIDISequence;
     
-    // 1. Adicionar variações sutis de timing
-    humanized.events = humanized.events.map(event => {
+    // 🔒 BACKUP DAS POSIÇÕES ORIGINAIS - PROTEÇÃO ABSOLUTA
+    const originalPositions = humanized.events.map(event => event.position);
+    console.log("🔒 Posições originais protegidas:", originalPositions);
+    
+    // Humanizar APENAS velocidades e durações - ZERO alteração de timing
+    humanized.events = humanized.events.map((event, index) => {
       if (event.type === 'note') {
-        // Variação de timing (até 10ms)
-        const timingVariance = Math.floor(Math.random() * 10) - 5;
+        // Variação MÍNIMA de velocidade (±3)
+        const velocityVariance = Math.floor(Math.random() * 6) - 3;
         
-        // Variação de velocidade (intensidade)
-        const velocityVariance = Math.floor(Math.random() * 15) - 7;
-        
-        // Variação de duração
-        const durationFactor = 0.97 + (Math.random() * 0.06);
+        // Variação MÍNIMA de duração (±2%)
+        const durationFactor = 0.99 + (Math.random() * 0.02);
         
         return {
           ...event,
-          position: event.position + timingVariance,
+          // 🛡️ POSIÇÃO NUNCA ALTERADA - TIMING ABSOLUTO
+          position: originalPositions[index], // SEMPRE A ORIGINAL!
           data2: Math.max(60, Math.min(100, (event.data2 || 80) + velocityVariance)),
           duration: Math.floor((event.duration || 480) * durationFactor)
         };
       }
-      return event;
+      
+      // Para eventos de controle - também preservar posições
+      return {
+        ...event,
+        position: originalPositions[index] // SEMPRE A ORIGINAL!
+      };
     });
     
-    // 2. Adicionar controles de expressão (se ainda não existirem)
-    const hasExpression = humanized.events.some(e => e.type === 'control' && e.data1 === 11);
-    if (!hasExpression) {
-      // Adicionar controle de expressão
-      humanized.events.push({
-        type: 'control',
-        channel: 1,
-        position: 0,
-        data1: 11, // Expression controller
-        data2: 100 // Starting value
+    // 🔍 VERIFICAÇÃO FINAL - GARANTIR QUE NENHUMA POSIÇÃO FOI ALTERADA
+    const finalPositions = humanized.events.map(event => event.position);
+    const positionsChanged = originalPositions.some((pos, i) => pos !== finalPositions[i]);
+    
+    if (positionsChanged) {
+      console.error("🚨 ERRO: Posições foram alteradas!");
+      console.error("Original:", originalPositions);
+      console.error("Final:", finalPositions);
+      // RESTAURAR posições originais em caso de erro
+      humanized.events.forEach((event, i) => {
+        event.position = originalPositions[i];
       });
+    } else {
+      console.log("✅ TIMING PRESERVADO - Nenhuma posição alterada");
     }
     
-    // 3. Adicionar ou ajustar pedal (sustain)
-    const hasPedal = humanized.events.some(e => e.type === 'control' && e.data1 === 64);
-    if (!hasPedal && humanized.events.filter(e => e.type === 'note').length > 1) {
-      // Identificar notas para colocar pedal entre elas
-      const notes = humanized.events
-        .filter(e => e.type === 'note')
-        .sort((a, b) => (a.position || 0) - (b.position || 0));
-      
-      if (notes.length >= 2) {
-        // Pedal down logo após a primeira nota
-        humanized.events.push({
-          type: 'control',
-          channel: 1,
-          position: (notes[0].position || 0) + 10,
-          data1: 64, // Sustain controller
-          data2: 127 // On
-        });
-        
-        // Pedal up antes da última nota
-        humanized.events.push({
-          type: 'control',
-          channel: 1,
-          position: (notes[notes.length - 1].position || 0) - 5,
-          data1: 64, // Sustain controller
-          data2: 0 // Off
-        });
-      }
-    }
+    // NÃO adicionar controles extras que possam afetar timing
+    // Apenas humanizar o que já existe
     
-    // 4. Ordenar eventos por posição
-    humanized.events.sort((a, b) => (a.position || 0) - (b.position || 0));
-    
+    console.log("🛡️ Humanização ultra-segura completa");
     return humanized;
   }
   
-  // Aplicar humanização adequada ao tipo específico de exercício
+  // Versão simplificada que APENAS preserva timing
   static humanizeByType(
     midiSequence: MIDISequence, 
     exerciseType: 'interval' | 'progression' | 'melodic' | 'rhythmic'
   ): MIDISequence {
-    // Humanização base
-    let humanized = this.humanize(midiSequence);
+    console.log(`🛡️ ULTRA-SAFE humanização para: ${exerciseType}`);
     
-    // Humanização específica por tipo
+    // Usar apenas a humanização base ultra-segura
+    const humanized = this.humanize(midiSequence);
+    
+    // Aplicar humanizações específicas SEM AFETAR TIMING
     switch (exerciseType) {
       case 'interval':
-        humanized = this.humanizeIntervals(humanized);
-        break;
-      case 'progression':
-        humanized = this.humanizeProgressions(humanized);
-        break;
-      case 'melodic':
-        humanized = this.humanizeMelodies(humanized);
-        break;
+        return this.humanizeIntervalsUltraSafe(humanized);
       case 'rhythmic':
-        humanized = this.humanizeRhythms(humanized);
-        break;
+        return this.humanizeRhythmsUltraSafe(humanized);
+      case 'melodic':
+        return this.humanizeMelodiesUltraSafe(humanized);
+      case 'progression':
+        return this.humanizeProgressionsUltraSafe(humanized);
+      default:
+        return humanized;
     }
-    
-    return humanized;
   }
   
-  // Humanização específica para intervalos
-  private static humanizeIntervals(midiSequence: MIDISequence): MIDISequence {
-    const notes = midiSequence.events.filter(e => e.type === 'note');
+  // Humanizações específicas ULTRA-SEGURAS (sem afetar timing)
+  private static humanizeIntervalsUltraSafe(midiSequence: MIDISequence): MIDISequence {
+    const noteEvents = midiSequence.events.filter(e => e.type === 'note');
     
-    if (notes.length >= 2) {
-      // Ajustar a segunda nota para ser ligeiramente mais suave
+    if (noteEvents.length >= 2) {
+      // Encontrar a segunda nota e torná-la ligeiramente mais suave
       const secondNoteIndex = midiSequence.events.findIndex(
-        e => e.type === 'note' && e.position === notes[1].position
+        e => e.type === 'note' && e === noteEvents[1]
       );
       
       if (secondNoteIndex !== -1) {
-        // Reduzir velocidade da segunda nota em 5-10%
-        const secondNote = midiSequence.events[secondNoteIndex];
-        const newVelocity = Math.max(65, Math.floor((secondNote.data2 || 80) * 0.92));
+        const currentVelocity = midiSequence.events[secondNoteIndex].data2 || 80;
         midiSequence.events[secondNoteIndex] = {
-          ...secondNote,
-          data2: newVelocity
+          ...midiSequence.events[secondNoteIndex],
+          data2: Math.max(65, Math.floor(currentVelocity * 0.93)) // -7%
         };
       }
     }
@@ -128,19 +108,76 @@ export class MidiHumanizer {
     return midiSequence;
   }
   
-  // Implementações simples para outros tipos
-  private static humanizeProgressions(midiSequence: MIDISequence): MIDISequence {
-    // Implementação simplificada para demonstrar o conceito
+  private static humanizeRhythmsUltraSafe(midiSequence: MIDISequence): MIDISequence {
+    const noteEvents = midiSequence.events.filter(e => e.type === 'note');
+    
+    noteEvents.forEach((note, i) => {
+      const eventIndex = midiSequence.events.findIndex(e => e === note);
+      
+      if (eventIndex !== -1) {
+        // Acentos rítmicos baseados em posição musical
+        const position = note.position || 0;
+        const isDownbeat = position === 0; // Primeiro tempo
+        const isStrongBeat = position % 960 === 0; // Tempos fortes
+        
+        let velocityMultiplier = 1.0;
+        if (isDownbeat) velocityMultiplier = 1.06;
+        else if (isStrongBeat) velocityMultiplier = 1.03;
+        else velocityMultiplier = 0.97;
+        
+        const currentVelocity = note.data2 || 80;
+        midiSequence.events[eventIndex] = {
+          ...midiSequence.events[eventIndex],
+          data2: Math.max(70, Math.min(110, Math.floor(currentVelocity * velocityMultiplier)))
+        };
+      }
+    });
+    
     return midiSequence;
   }
   
-  private static humanizeMelodies(midiSequence: MIDISequence): MIDISequence {
-    // Implementação simplificada para demonstrar o conceito
+  private static humanizeMelodiesUltraSafe(midiSequence: MIDISequence): MIDISequence {
+    const noteEvents = midiSequence.events.filter(e => e.type === 'note');
+    
+    noteEvents.forEach((note, i) => {
+      const eventIndex = midiSequence.events.findIndex(e => e === note);
+      
+      if (eventIndex !== -1) {
+        // Criar frase musical simples
+        const phrasePosition = i / Math.max(1, noteEvents.length - 1);
+        const dynamicCurve = Math.sin(phrasePosition * Math.PI);
+        const velocityMultiplier = 0.94 + (dynamicCurve * 0.12); // 94-106%
+        
+        const currentVelocity = note.data2 || 80;
+        midiSequence.events[eventIndex] = {
+          ...midiSequence.events[eventIndex],
+          data2: Math.max(65, Math.min(105, Math.floor(currentVelocity * velocityMultiplier)))
+        };
+      }
+    });
+    
     return midiSequence;
   }
   
-  private static humanizeRhythms(midiSequence: MIDISequence): MIDISequence {
-    // Implementação simplificada para demonstrar o conceito
+  private static humanizeProgressionsUltraSafe(midiSequence: MIDISequence): MIDISequence {
+    // Para progressões, manter velocidades mais consistentes
+    const noteEvents = midiSequence.events.filter(e => e.type === 'note');
+    
+    noteEvents.forEach(note => {
+      const eventIndex = midiSequence.events.findIndex(e => e === note);
+      
+      if (eventIndex !== -1) {
+        // Variação mínima para acordes (±2%)
+        const velocityMultiplier = 0.98 + (Math.random() * 0.04);
+        const currentVelocity = note.data2 || 80;
+        
+        midiSequence.events[eventIndex] = {
+          ...midiSequence.events[eventIndex],
+          data2: Math.max(70, Math.min(100, Math.floor(currentVelocity * velocityMultiplier)))
+        };
+      }
+    });
+    
     return midiSequence;
   }
 }
