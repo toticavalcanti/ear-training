@@ -1,5 +1,5 @@
 // ===================================
-// CRIAR: src/models/Achievement.ts
+// src/models/Achievement.ts - VERSÃO CORRIGIDA
 // ===================================
 import mongoose, { Schema, Document } from 'mongoose';
 
@@ -14,6 +14,10 @@ export interface IAchievement extends Document {
   points: number; // XP ganho
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
   isActive: boolean;
+  
+  // Timestamps automáticos do Mongoose
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const AchievementSchema: Schema = new Schema({
@@ -35,6 +39,8 @@ const AchievementSchema: Schema = new Schema({
     enum: ['common', 'rare', 'epic', 'legendary'] 
   },
   isActive: { type: Boolean, default: true }
-}, { timestamps: true });
+}, { 
+  timestamps: true // Isso adiciona createdAt e updatedAt automaticamente
+});
 
 export default mongoose.model<IAchievement>('Achievement', AchievementSchema);

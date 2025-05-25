@@ -378,8 +378,9 @@ export class GamificationService {
         // Pular se já desbloqueado
         if (unlockedIds.includes(achievement.id)) continue;
         
-        // Verificar se a condição foi atendida
-        if (this.checkAchievementCondition(achievement, userProgress)) {
+        // Verificar se a condição foi atendida (agora usando await)
+        const conditionMet = await this.checkAchievementCondition(achievement, userProgress);
+        if (conditionMet) {
           try {
             // Desbloquear achievement
             await new UserAchievement({
@@ -408,7 +409,7 @@ export class GamificationService {
    * @param userProgress - Progresso do usuário
    * @returns true se a condição foi atendida
    */
-  private static checkAchievementCondition(achievement: any, userProgress: any): boolean {
+  private static async checkAchievementCondition(achievement: any, userProgress: any): Promise<boolean> {
     const condition = achievement.condition;
     const threshold = achievement.threshold;
     
@@ -444,13 +445,13 @@ export class GamificationService {
         case 'experience_points':
           return userProgress.experience >= threshold;
           
-        // Condições especiais que requerem verificação de UserScore
+        // Condições especiais que requerem verificação de UserScore (agora usando await)
         case 'fast_completion':
-          return this.checkFastCompletion(userProgress.userId, threshold);
+          return await this.checkFastCompletion(userProgress.userId, threshold);
           
         case 'early_completion':
         case 'late_completion':
-          return this.checkTimeBasedCompletion(userProgress.userId, condition);
+          return await this.checkTimeBasedCompletion(userProgress.userId, condition);
           
         default:
           console.warn(`⚠️ Condição de achievement desconhecida: ${condition}`);
@@ -584,24 +585,36 @@ export class GamificationService {
    */
   static async getUserAchievements(userId: string) {
     try {
-      // Buscar achievements desbloqueados pelo usuário
+      // Buscar achievements desbloqueados pelo usuário (sem populate para evitar problemas)
       const userAchievements = await UserAchievement.find({ userId })
-        .populate('achievementId')
         .sort({ unlockedAt: -1 });
       
       // Buscar todos os achievements disponíveis
       const allAchievements = await Achievement.find({ isActive: true });
       
-      // Filtrar achievements ainda bloqueados
+      // Extrair IDs dos achievements desbloqueados
       const unlockedIds = userAchievements.map(ua => ua.achievementId);
+      
+      // Filtrar achievements ainda bloqueados
       const locked = allAchievements.filter(achievement => 
         !unlockedIds.includes(achievement.id)
+      );
+      
+      // Buscar dados completos dos achievements desbloqueados
+      const unlockedWithData = await Promise.all(
+        userAchievements.map(async (ua) => {
+          const achievementData = await Achievement.findOne({ id: ua.achievementId });
+          return {
+            ...ua.toObject(),
+            achievementData: achievementData
+          };
+        })
       );
       
       console.log(`🏆 Achievements do usuário ${userId}: ${userAchievements.length}/${allAchievements.length}`);
       
       return {
-        unlocked: userAchievements,
+        unlocked: unlockedWithData,
         locked: locked,
         total: allAchievements.length,
         unlockedCount: userAchievements.length

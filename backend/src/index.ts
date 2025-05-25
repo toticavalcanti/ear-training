@@ -1,15 +1,18 @@
-// src/index.ts
+// src/index.ts - VERSÃO ATUALIZADA SIMPLES
 import express from 'express';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import cors from 'cors';
 
-// Rotas
+// Rotas existentes
 import authRoutes from './routes/authRoutes';
 import exerciseRoutes from './routes/exerciseRoutes';
 import userRoutes from './routes/userRoutes';
 import stripeRoutes from './routes/stripeRoutes';
-// Removida a importação de testRoutes
+
+// NOVAS ROTAS - ADICIONE ESTAS LINHAS:
+import gamificationRoutes from './routes/gamificationRoutes';
+import adminRoutes from './routes/adminRoutes';
 
 // LLM Service
 import { LLMService } from './services/llm';
@@ -40,56 +43,39 @@ mongoose.connect(process.env.MONGODB_URI || '')
   })
   .catch(err => console.error('Erro ao conectar ao MongoDB:', err));
 
-// Rotas
+// Rotas existentes
 app.use('/api/auth', authRoutes);
 app.use('/api/exercises', exerciseRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/stripe', stripeRoutes);
-// Removida a linha app.use('/api/test', testRoutes);
+
+// NOVAS ROTAS - ADICIONE ESTAS LINHAS:
+app.use('/api/gamification', gamificationRoutes);
+app.use('/api/admin', adminRoutes);
 
 console.log('Rotas registradas com sucesso!');
+console.log('🎮 Sistema de gamificação ativo em /api/gamification');
+console.log('⚙️ Painel administrativo em /api/admin');
 
-// Páginas de teste para redirecionamento após pagamento
+// Rota de teste de saúde da API
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'API funcionando corretamente',
+    gamification: '✅ Sistema de gamificação ativo',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Páginas existentes de pagamento...
 app.get('/payment-success', (req, res) => {
   res.send(`
     <html>
-      <head>
-        <title>Pagamento bem-sucedido</title>
-        <style>
-          body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            padding: 50px;
-            max-width: 600px;
-            margin: 0 auto;
-          }
-          h1 {
-            color: #4CAF50;
-          }
-          .session-id {
-            background-color: #f5f5f5;
-            padding: 10px;
-            border-radius: 4px;
-            font-family: monospace;
-            margin: 20px 0;
-          }
-          a {
-            display: inline-block;
-            background-color: #4f46e5;
-            color: white;
-            padding: 10px 20px;
-            text-decoration: none;
-            border-radius: 4px;
-            margin-top: 20px;
-          }
-        </style>
-      </head>
+      <head><title>Pagamento bem-sucedido</title></head>
       <body>
         <h1>Pagamento bem-sucedido!</h1>
         <p>Sua assinatura premium foi ativada com sucesso.</p>
-        <div class="session-id">Session ID: ${req.query.session_id}</div>
-        <p>Você agora tem acesso a todos os recursos premium do Ear Training.</p>
-        <a href="/">Voltar ao início</a>
+        <p>Session ID: ${req.query.session_id}</p>
       </body>
     </html>
   `);
@@ -98,55 +84,19 @@ app.get('/payment-success', (req, res) => {
 app.get('/payment-cancelled', (req, res) => {
   res.send(`
     <html>
-      <head>
-        <title>Pagamento cancelado</title>
-        <style>
-          body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            padding: 50px;
-            max-width: 600px;
-            margin: 0 auto;
-          }
-          h1 {
-            color: #f44336;
-          }
-          a {
-            display: inline-block;
-            background-color: #4f46e5;
-            color: white;
-            padding: 10px 20px;
-            text-decoration: none;
-            border-radius: 4px;
-            margin-top: 20px;
-          }
-          .secondary {
-            background-color: transparent;
-            color: #4f46e5;
-            border: 1px solid #4f46e5;
-            margin-left: 10px;
-          }
-        </style>
-      </head>
+      <head><title>Pagamento cancelado</title></head>
       <body>
         <h1>Pagamento cancelado</h1>
         <p>Você cancelou o processo de pagamento.</p>
-        <p>Se encontrou algum problema ou tem dúvidas, entre em contato conosco.</p>
-        <div>
-          <a href="/api/stripe/test-checkout">Tentar novamente</a>
-          <a href="/" class="secondary">Voltar ao início</a>
-        </div>
       </body>
     </html>
   `);
 });
 
-// Rota de teste de saúde da API
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'API funcionando corretamente' });
-});
-
 // Iniciar servidor
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
+  console.log(`🎮 Gamificação: http://localhost:${PORT}/api/gamification/test`);
+  console.log(`⚙️ Admin: http://localhost:${PORT}/api/admin/achievements`);
+  console.log(`❤️ Health: http://localhost:${PORT}/api/health`);
 });
