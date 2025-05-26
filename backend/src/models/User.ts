@@ -1,4 +1,4 @@
-//src/models/User.ts
+//backend/src/models/User.ts
 import mongoose, { Document, Schema } from 'mongoose';
 import bcryptjs from 'bcryptjs';
 
@@ -29,7 +29,7 @@ const UserSchema = new Schema<IUser>({
   email: {
     type: String,
     required: [true, 'Email é obrigatório'],
-    unique: true,
+    unique: true, // ✅ MANTÉM apenas unique (já cria índice automaticamente)
     trim: true,
     lowercase: true,
     match: [/^\S+@\S+\.\S+$/, 'Email inválido'],
@@ -54,7 +54,7 @@ const UserSchema = new Schema<IUser>({
   // 🆕 NOVOS CAMPOS GOOGLE OAUTH:
   googleId: {
     type: String,
-    unique: true,
+    unique: true, // ✅ MANTÉM apenas unique (já cria índice automaticamente)
     sparse: true, // Permite null/undefined mas garante unicidade quando existe
   },
   avatar: {
@@ -65,8 +65,12 @@ const UserSchema = new Schema<IUser>({
   suppressReservedKeysWarning: true, // Remove warning do mongoose
 });
 
-// Index para performance nas consultas Google
-UserSchema.index({ googleId: 1 });
+// ❌ REMOVIDO: UserSchema.index({ googleId: 1 }); 
+// O unique: true já cria este índice automaticamente
+
+// ✅ MANTÉM apenas índices que realmente precisamos e não são duplicados:
+UserSchema.index({ lastActive: 1 }); // Para queries de usuários ativos
+UserSchema.index({ subscription: 1 }); // Para filtrar por tipo de assinatura
 
 // Método para comparar senha
 UserSchema.methods.comparePassword = async function(password: string): Promise<boolean> {
@@ -81,6 +85,12 @@ UserSchema.pre('validate', function(next) {
   if (!this.passwordHash && !this.googleId) {
     this.invalidate('passwordHash', 'Usuário deve ter senha ou Google ID');
   }
+  next();
+});
+
+// Middleware para atualizar lastActive automaticamente
+UserSchema.pre('save', function(next) {
+  this.lastActive = new Date();
   next();
 });
 
