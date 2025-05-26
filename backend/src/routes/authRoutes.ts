@@ -57,7 +57,8 @@ router.get('/google/callback',
 
       const token = generateToken((req.user._id as any).toString());
       const frontendUrl = process.env.CORS_ORIGIN || 'http://localhost:3000';
-      res.redirect(`${frontendUrl}/auth/success?token=${token}`);
+      //res.redirect(`${frontendUrl}/auth/success?token=${token}`);
+      res.redirect(`${frontendUrl}/?token=${token}`);
       
     } catch (error) {
       console.error('Erro no callback Google:', error);

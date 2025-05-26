@@ -5,9 +5,6 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
-
 export default function RegisterPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -57,9 +54,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <>
-      <Navbar />
-      
+    <>     
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center py-12 px-4">
         <div className="max-w-md w-full space-y-8">
           
@@ -244,8 +239,6 @@ export default function RegisterPage() {
           </div>
         </div>
       </div>
-
-      <Footer />
     </>
   );
 }
