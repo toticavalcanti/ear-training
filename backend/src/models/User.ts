@@ -54,8 +54,8 @@ const UserSchema = new Schema<IUser>({
   // 🆕 NOVOS CAMPOS GOOGLE OAUTH:
   googleId: {
     type: String,
-    unique: true,
-    sparse: true, // Permite null/undefined mas garante unicidade quando existe
+    unique: true,        // ✅ MANTÉM: unique cria índice automaticamente
+    sparse: true,        // ✅ MANTÉM: permite null/undefined únicos
   },
   avatar: {
     type: String,
@@ -65,8 +65,8 @@ const UserSchema = new Schema<IUser>({
   suppressReservedKeysWarning: true, // Remove warning do mongoose
 });
 
-// Index para performance nas consultas Google
-UserSchema.index({ googleId: 1 });
+// ❌ REMOVER ESTA LINHA (se existir em algum lugar):
+// UserSchema.index({ googleId: 1 });
 
 // Método para comparar senha
 UserSchema.methods.comparePassword = async function(password: string): Promise<boolean> {
