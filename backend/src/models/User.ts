@@ -5,15 +5,15 @@ import bcryptjs from 'bcryptjs';
 export interface IUser extends Document {
   name: string;
   email: string;
-  passwordHash?: string; // Agora opcional para Google users
+  passwordHash?: string; // Opcional para Google users
   subscription: 'free' | 'premium';
   lastActive: Date;
   
-  // 🆕 CAMPOS GOOGLE OAUTH:
+  // Campos Google OAuth:
   googleId?: string;
   avatar?: string;
   
-  // 🆕 TIMESTAMPS (adicionados pelo Mongoose)
+  // Timestamps (adicionados pelo Mongoose)
   createdAt: Date;
   updatedAt: Date;
   
@@ -29,7 +29,7 @@ const UserSchema = new Schema<IUser>({
   email: {
     type: String,
     required: [true, 'Email é obrigatório'],
-    unique: true, // ✅ MANTÉM apenas unique (já cria índice automaticamente)
+    unique: true,
     trim: true,
     lowercase: true,
     match: [/^\S+@\S+\.\S+$/, 'Email inválido'],
@@ -51,11 +51,11 @@ const UserSchema = new Schema<IUser>({
     default: Date.now,
   },
   
-  // 🆕 NOVOS CAMPOS GOOGLE OAUTH:
+  // ✅ CAMPO GOOGLE ID CORRIGIDO (sem duplicação)
   googleId: {
     type: String,
-    unique: true, // ✅ MANTÉM apenas unique (já cria índice automaticamente)
-    sparse: true, // Permite null/undefined mas garante unicidade quando existe
+    unique: true,        // Cria índice automaticamente
+    sparse: true,        // Permite null/undefined únicos
   },
   avatar: {
     type: String,
@@ -65,14 +65,11 @@ const UserSchema = new Schema<IUser>({
   suppressReservedKeysWarning: true, // Remove warning do mongoose
 });
 
-// ❌ REMOVIDO: UserSchema.index({ googleId: 1 }); 
-// O unique: true já cria este índice automaticamente
-
-// ✅ MANTÉM apenas índices que realmente precisamos e não são duplicados:
+// ✅ ÍNDICES NECESSÁRIOS (sem duplicar o googleId que já é unique)
 UserSchema.index({ lastActive: 1 }); // Para queries de usuários ativos
 UserSchema.index({ subscription: 1 }); // Para filtrar por tipo de assinatura
 
-// Método para comparar senha
+// ✅ MÉTODO PARA COMPARAR SENHA
 UserSchema.methods.comparePassword = async function(password: string): Promise<boolean> {
   if (!this.passwordHash) {
     return false; // Usuários do Google não têm senha
@@ -80,7 +77,7 @@ UserSchema.methods.comparePassword = async function(password: string): Promise<b
   return await bcryptjs.compare(password, this.passwordHash);
 };
 
-// Validação customizada: deve ter senha OU googleId
+// ✅ VALIDAÇÃO CUSTOMIZADA: deve ter senha OU googleId
 UserSchema.pre('validate', function(next) {
   if (!this.passwordHash && !this.googleId) {
     this.invalidate('passwordHash', 'Usuário deve ter senha ou Google ID');
@@ -88,7 +85,7 @@ UserSchema.pre('validate', function(next) {
   next();
 });
 
-// Middleware para atualizar lastActive automaticamente
+// ✅ MIDDLEWARE PARA ATUALIZAR lastActive AUTOMATICAMENTE
 UserSchema.pre('save', function(next) {
   this.lastActive = new Date();
   next();

@@ -1,7 +1,8 @@
+// frontend/src/components/IntervalExercise.tsx
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { getMIDIHandler } from '@/lib/midiHandler';
+import { pianoSynth } from '@/lib/pianoSynthesizer';
 import VirtualKeyboard from './VirtualKeyboard';
 
 interface IntervalExerciseProps {
@@ -29,13 +30,13 @@ export default function IntervalExercise({
   difficulty = 'beginner',
   onComplete 
 }: IntervalExerciseProps) {
-  const [midiHandler] = useState(getMIDIHandler());
   const [startTime, setStartTime] = useState<number | null>(null);
   const [currentInterval, setCurrentInterval] = useState<string | null>(null);
   const [notes, setNotes] = useState<number[]>([]);
   const [userAnswer, setUserAnswer] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   // Gerar um intervalo aleatorio baseado na dificuldade
   const generateInterval = useCallback(() => {
@@ -69,23 +70,25 @@ export default function IntervalExercise({
   }, [difficulty]);
 
   // Iniciar um novo exercício
-  const startExercise = useCallback(() => {
+  const startExercise = useCallback(async () => {
     setUserAnswer(null);
     setIsCorrect(null);
     setShowFeedback(false);
+    setIsPlaying(true);
     
     const [baseNote, secondNote] = generateInterval();
     setStartTime(Date.now());
     
-    // Tocar as notas sequencialmente
-    setTimeout(() => {
-      midiHandler.playNote(baseNote, 100, 1000);
+    // Tocar as notas sequencialmente com som de piano
+    setTimeout(async () => {
+      await pianoSynth.playNote(baseNote, 80, 800);
       
-      setTimeout(() => {
-        midiHandler.playNote(secondNote, 100, 1000);
-      }, 1200);
+      setTimeout(async () => {
+        await pianoSynth.playNote(secondNote, 80, 800);
+        setIsPlaying(false);
+      }, 900);
     }, 500);
-  }, [midiHandler, generateInterval]);
+  }, [generateInterval]);
 
   // Verificar a resposta do usuário
   const checkAnswer = useCallback((answer: string) => {
@@ -107,22 +110,22 @@ export default function IntervalExercise({
   }, [currentInterval, onComplete, startTime]);
 
   // Tocar o intervalo novamente
-  const playInterval = useCallback(() => {
-    if (notes.length === 2) {
-      midiHandler.playNote(notes[0], 100, 1000);
+  const playInterval = useCallback(async () => {
+    if (notes.length === 2 && !isPlaying) {
+      setIsPlaying(true);
       
-      setTimeout(() => {
-        midiHandler.playNote(notes[1], 100, 1000);
-      }, 1200);
+      await pianoSynth.playNote(notes[0], 80, 800);
+      await new Promise(resolve => setTimeout(resolve, 900));
+      await pianoSynth.playNote(notes[1], 80, 800);
+      
+      setIsPlaying(false);
     }
-  }, [midiHandler, notes]);
+  }, [notes, isPlaying]);
 
   // Iniciar exercício quando o componente carrega
   useEffect(() => {
-    midiHandler.initialize().then(() => {
-      startExercise();
-    });
-  }, [midiHandler, startExercise]);
+    startExercise();
+  }, [startExercise]);
 
   return (
     <div className="interval-exercise">
@@ -136,9 +139,14 @@ export default function IntervalExercise({
       <div className="flex justify-center mb-4">
         <button 
           onClick={playInterval}
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
+          disabled={isPlaying}
+          className={`px-6 py-3 rounded-lg font-medium transition-all ${
+            isPlaying 
+              ? 'bg-gray-400 cursor-not-allowed' 
+              : 'bg-blue-500 hover:bg-blue-600 text-white hover:scale-105'
+          }`}
         >
-          Ouvir Novamente
+          {isPlaying ? '🎵 Tocando...' : '🎹 Ouvir Novamente'}
         </button>
       </div>
       

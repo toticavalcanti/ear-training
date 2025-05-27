@@ -1,3 +1,4 @@
+// src\lib\midiHandler.ts
 // Defina uma interface apropriada para o AudioContext
 interface AudioContextType {
     new (): AudioContext;

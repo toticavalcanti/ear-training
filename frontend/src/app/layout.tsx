@@ -1,34 +1,46 @@
-// frontend/src/app/layout.tsx
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-import { AuthProvider } from '@/contexts/AuthContext';
-import './globals.css';
+// ===================================
+// src/app/layout.tsx
+// ===================================
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import { AuthProvider } from "@/contexts/AuthContext";
 
-const inter = Inter({ subsets: ['latin'] });
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
 
 export const metadata: Metadata = {
-  title: 'Ear Training - Treinamento Auditivo Musical',
-  description: 'Desenvolva sua percepção musical com exercícios interativos e científicos',
-  keywords: 'ear training, treinamento auditivo, música, percepção musical, intervalos, harmonia',
-  authors: [{ name: 'Ear Training Team' }],
-  viewport: 'width=device-width, initial-scale=1',
-  themeColor: '#4F46E5',
+  title: "Treinamento Auditivo Musical",
+  description: "Melhore seu ouvido musical com exercícios interativos",
 };
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
-    <html lang="pt-BR">
-      <head>
-        <link rel="icon" href="/favicon.ico" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-      </head>
-      <body className={inter.className}>
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head />
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
+        suppressHydrationWarning
+      >
         <AuthProvider>
-          {children}
+          <Navbar />
+          <main className="flex-grow">
+            {children}
+          </main>
+          <Footer />
         </AuthProvider>
       </body>
     </html>
