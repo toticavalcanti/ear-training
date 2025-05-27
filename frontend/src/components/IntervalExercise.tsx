@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { realisticPiano } from '@/lib/pianoSynthesizer';
-import VirtualKeyboard from './VirtualKeyboard';
+import BeautifulPianoKeyboard from './BeautifulPianoKeyboard';
 
 interface IntervalExerciseProps {
   difficulty?: 'beginner' | 'intermediate' | 'advanced';
@@ -71,29 +71,6 @@ export default function IntervalExercise({
     return [baseNote, secondNote];
   }, [difficulty]);
 
-  // Inicializar e carregar piano
-  const loadPiano = useCallback(async () => {
-    if (isPianoLoaded || isLoadingPiano) return;
-    
-    setIsLoadingPiano(true);
-    console.log('🎹 Carregando piano realista...');
-    
-    try {
-      const loaded = await realisticPiano.preload();
-      setIsPianoLoaded(loaded);
-      
-      if (loaded) {
-        console.log('✅ Piano realista carregado!');
-      } else {
-        console.error('❌ Falha ao carregar piano');
-      }
-    } catch (error) {
-      console.error('❌ Erro ao carregar piano:', error);
-    } finally {
-      setIsLoadingPiano(false);
-    }
-  }, [isPianoLoaded, isLoadingPiano]);
-
   // Iniciar um novo exercício
   const startExercise = useCallback(async () => {
     setUserAnswer(null);
@@ -106,15 +83,15 @@ export default function IntervalExercise({
     
     console.log(`🎯 Novo exercício - Intervalo: ${currentInterval}`);
     
-    // Tocar as notas sequencialmente com som de piano REALISTA
+    // Tocar as notas sequencialmente com som de piano
     setTimeout(async () => {
       try {
-        await realisticPiano.playNote(baseNote, 100, 1000);
+        await realisticPiano.playNote(baseNote, 80, 800);
         
         setTimeout(async () => {
-          await realisticPiano.playNote(secondNote, 100, 1000);
+          await realisticPiano.playNote(secondNote, 80, 800);
           setIsPlaying(false);
-        }, 1100);
+        }, 900);
       } catch (error) {
         console.error('❌ Erro ao tocar exercício:', error);
         setIsPlaying(false);
@@ -148,12 +125,12 @@ export default function IntervalExercise({
       
       try {
         console.log('🔄 Repetindo intervalo...');
-        await realisticPiano.playNote(notes[0], 100, 1000);
+        await realisticPiano.playNote(notes[0], 80, 800);
         
         setTimeout(async () => {
-          await realisticPiano.playNote(notes[1], 100, 1000);
+          await realisticPiano.playNote(notes[1], 80, 800);
           setIsPlaying(false);
-        }, 1100);
+        }, 900);
       } catch (error) {
         console.error('❌ Erro ao repetir intervalo:', error);
         setIsPlaying(false);
@@ -163,8 +140,21 @@ export default function IntervalExercise({
 
   // Carregar piano quando componente monta
   useEffect(() => {
+    const loadPiano = async () => {
+      setIsLoadingPiano(true);
+      try {
+        const loaded = await realisticPiano.preload();
+        setIsPianoLoaded(loaded);
+      } catch (error) {
+        console.error('❌ Erro ao carregar piano:', error);
+        setIsPianoLoaded(false);
+      } finally {
+        setIsLoadingPiano(false);
+      }
+    };
+    
     loadPiano();
-  }, [loadPiano]);
+  }, []);
 
   // Iniciar exercício quando piano estiver carregado
   useEffect(() => {
@@ -210,7 +200,7 @@ export default function IntervalExercise({
               : 'bg-blue-500 hover:bg-blue-600 text-white hover:scale-105'
           }`}
         >
-          {isPlaying ? '🎵 Tocando...' : !isPianoLoaded ? '⏳ Carregando...' : '🎹 Ouvir Novamente'}
+          {isPlaying ? '🎵 Tocando...' : !isPianoLoaded ? (isLoadingPiano ? '⏳ Carregando...' : '❌ Piano não carregado') : '🎹 Ouvir Novamente'}
         </button>
       </div>
       
@@ -251,9 +241,9 @@ export default function IntervalExercise({
       <div className="mt-4">
         <button
           onClick={startExercise}
-          disabled={!isPianoLoaded}
+          disabled={!isPianoLoaded || isLoadingPiano}
           className={`px-6 py-2 rounded font-medium transition-colors ${
-            !isPianoLoaded
+            !isPianoLoaded || isLoadingPiano
               ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
               : 'bg-indigo-600 text-white hover:bg-indigo-700'
           }`}
@@ -263,8 +253,16 @@ export default function IntervalExercise({
       </div>
       
       <div className="mt-8">
-        <h3 className="text-lg font-semibold mb-2">Teclado Virtual</h3>
-        <VirtualKeyboard />
+        <h3 className="text-lg font-semibold mb-4 text-center">🎹 Piano Virtual</h3>
+        <BeautifulPianoKeyboard 
+          width={800}
+          height={200}
+          octaves={3}
+          startNote="C3"
+          onNotePlay={(note, frequency) => {
+            console.log(`🎵 Tocando: ${note} (${frequency.toFixed(2)}Hz)`);
+          }}
+        />
       </div>
     </div>
   );
