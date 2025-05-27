@@ -1,8 +1,8 @@
-// frontend/src/components/IntervalExercise.tsx
+// frontend/src/components/IntervalExercise.tsx - VERSÃO COM SOM REALISTA
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { pianoSynth } from '@/lib/pianoSynthesizer';
+import { realisticPiano } from '@/lib/pianoSynthesizer';
 import VirtualKeyboard from './VirtualKeyboard';
 
 interface IntervalExerciseProps {
@@ -37,6 +37,8 @@ export default function IntervalExercise({
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isPianoLoaded, setIsPianoLoaded] = useState(false);
+  const [isLoadingPiano, setIsLoadingPiano] = useState(false);
 
   // Gerar um intervalo aleatorio baseado na dificuldade
   const generateInterval = useCallback(() => {
@@ -69,6 +71,29 @@ export default function IntervalExercise({
     return [baseNote, secondNote];
   }, [difficulty]);
 
+  // Inicializar e carregar piano
+  const loadPiano = useCallback(async () => {
+    if (isPianoLoaded || isLoadingPiano) return;
+    
+    setIsLoadingPiano(true);
+    console.log('🎹 Carregando piano realista...');
+    
+    try {
+      const loaded = await realisticPiano.preload();
+      setIsPianoLoaded(loaded);
+      
+      if (loaded) {
+        console.log('✅ Piano realista carregado!');
+      } else {
+        console.error('❌ Falha ao carregar piano');
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar piano:', error);
+    } finally {
+      setIsLoadingPiano(false);
+    }
+  }, [isPianoLoaded, isLoadingPiano]);
+
   // Iniciar um novo exercício
   const startExercise = useCallback(async () => {
     setUserAnswer(null);
@@ -79,16 +104,23 @@ export default function IntervalExercise({
     const [baseNote, secondNote] = generateInterval();
     setStartTime(Date.now());
     
-    // Tocar as notas sequencialmente com som de piano
+    console.log(`🎯 Novo exercício - Intervalo: ${currentInterval}`);
+    
+    // Tocar as notas sequencialmente com som de piano REALISTA
     setTimeout(async () => {
-      await pianoSynth.playNote(baseNote, 80, 800);
-      
-      setTimeout(async () => {
-        await pianoSynth.playNote(secondNote, 80, 800);
+      try {
+        await realisticPiano.playNote(baseNote, 100, 1000);
+        
+        setTimeout(async () => {
+          await realisticPiano.playNote(secondNote, 100, 1000);
+          setIsPlaying(false);
+        }, 1100);
+      } catch (error) {
+        console.error('❌ Erro ao tocar exercício:', error);
         setIsPlaying(false);
-      }, 900);
+      }
     }, 500);
-  }, [generateInterval]);
+  }, [generateInterval, currentInterval]);
 
   // Verificar a resposta do usuário
   const checkAnswer = useCallback((answer: string) => {
@@ -111,21 +143,42 @@ export default function IntervalExercise({
 
   // Tocar o intervalo novamente
   const playInterval = useCallback(async () => {
-    if (notes.length === 2 && !isPlaying) {
+    if (notes.length === 2 && !isPlaying && isPianoLoaded) {
       setIsPlaying(true);
       
-      await pianoSynth.playNote(notes[0], 80, 800);
-      await new Promise(resolve => setTimeout(resolve, 900));
-      await pianoSynth.playNote(notes[1], 80, 800);
-      
-      setIsPlaying(false);
+      try {
+        console.log('🔄 Repetindo intervalo...');
+        await realisticPiano.playNote(notes[0], 100, 1000);
+        
+        setTimeout(async () => {
+          await realisticPiano.playNote(notes[1], 100, 1000);
+          setIsPlaying(false);
+        }, 1100);
+      } catch (error) {
+        console.error('❌ Erro ao repetir intervalo:', error);
+        setIsPlaying(false);
+      }
     }
-  }, [notes, isPlaying]);
+  }, [notes, isPlaying, isPianoLoaded]);
 
-  // Iniciar exercício quando o componente carrega
+  // Carregar piano quando componente monta
   useEffect(() => {
-    startExercise();
-  }, [startExercise]);
+    loadPiano();
+  }, [loadPiano]);
+
+  // Iniciar exercício quando piano estiver carregado
+  useEffect(() => {
+    if (isPianoLoaded && !isPlaying && !currentInterval) {
+      startExercise();
+    }
+  }, [isPianoLoaded, isPlaying, currentInterval, startExercise]);
+
+  // Status do piano
+  const getPianoStatus = () => {
+    if (isLoadingPiano) return 'Carregando piano realista...';
+    if (!isPianoLoaded) return 'Piano não carregado';
+    return 'Piano realista pronto!';
+  };
 
   return (
     <div className="interval-exercise">
@@ -134,19 +187,30 @@ export default function IntervalExercise({
         <p className="text-gray-600">
           Ouça o intervalo e identifique-o. Clique em &quot;Ouvir Novamente&quot; para repetir o som.
         </p>
+        
+        {/* Status do Piano */}
+        <div className={`mt-2 text-sm p-2 rounded ${
+          isPianoLoaded 
+            ? 'bg-green-100 text-green-800' 
+            : isLoadingPiano 
+              ? 'bg-yellow-100 text-yellow-800' 
+              : 'bg-red-100 text-red-800'
+        }`}>
+          🎹 {getPianoStatus()}
+        </div>
       </div>
       
       <div className="flex justify-center mb-4">
         <button 
           onClick={playInterval}
-          disabled={isPlaying}
+          disabled={isPlaying || !isPianoLoaded}
           className={`px-6 py-3 rounded-lg font-medium transition-all ${
-            isPlaying 
+            isPlaying || !isPianoLoaded
               ? 'bg-gray-400 cursor-not-allowed' 
               : 'bg-blue-500 hover:bg-blue-600 text-white hover:scale-105'
           }`}
         >
-          {isPlaying ? '🎵 Tocando...' : '🎹 Ouvir Novamente'}
+          {isPlaying ? '🎵 Tocando...' : !isPianoLoaded ? '⏳ Carregando...' : '🎹 Ouvir Novamente'}
         </button>
       </div>
       
@@ -155,12 +219,18 @@ export default function IntervalExercise({
           <button
             key={interval}
             onClick={() => checkAnswer(interval)}
-            disabled={showFeedback}
-            className={`p-3 border rounded transition-colors
-              ${userAnswer === interval && isCorrect ? 'bg-green-100 border-green-500' : ''}
-              ${userAnswer === interval && !isCorrect ? 'bg-red-100 border-red-500' : ''}
-              ${!userAnswer ? 'hover:bg-gray-100' : ''}
-            `}
+            disabled={showFeedback || !isPianoLoaded}
+            className={`p-3 border rounded transition-colors font-medium ${
+              showFeedback
+                ? interval === currentInterval
+                  ? 'bg-green-100 border-green-500 text-green-800'
+                  : interval === userAnswer
+                    ? 'bg-red-100 border-red-500 text-red-800'
+                    : 'bg-gray-100 border-gray-300 text-gray-500'
+                : !isPianoLoaded
+                  ? 'bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed'
+                  : 'bg-gray-50 border-gray-300 hover:bg-blue-50 hover:border-blue-300 hover:scale-105'
+            }`}
           >
             {name} ({interval})
           </button>
@@ -181,7 +251,12 @@ export default function IntervalExercise({
       <div className="mt-4">
         <button
           onClick={startExercise}
-          className="bg-indigo-600 text-white px-6 py-2 rounded hover:bg-indigo-700 transition-colors"
+          disabled={!isPianoLoaded}
+          className={`px-6 py-2 rounded font-medium transition-colors ${
+            !isPianoLoaded
+              ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+              : 'bg-indigo-600 text-white hover:bg-indigo-700'
+          }`}
         >
           Próximo Exercício
         </button>

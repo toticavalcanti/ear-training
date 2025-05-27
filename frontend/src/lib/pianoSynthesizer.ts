@@ -5,12 +5,23 @@ interface WindowWithAudioContext extends Window {
   webkitAudioContext?: typeof AudioContext;
 }
 
+interface PianoInstrument {
+  play: (noteName: string, time: number, options?: {
+    duration?: number;
+    gain?: number;
+  }) => NoteInstance;
+}
+
+interface NoteInstance {
+  stop: () => void;
+}
+
 export class RealisticPianoSynth {
   private audioContext: AudioContext | null = null;
-  private piano: any = null;
+  private piano: PianoInstrument | null = null;
   private isLoaded = false;
   private isLoading = false;
-  private activeNotes: Map<number, any> = new Map();
+  private activeNotes: Map<number, NoteInstance> = new Map();
 
   constructor() {
     this.initializeAudio();
@@ -50,7 +61,7 @@ export class RealisticPianoSynth {
           return `https://gleitz.github.io/midi-js-soundfonts/${soundfont}/${name}-${format}.js`;
         },
         gain: 0.7 // Volume
-      });
+      }) as PianoInstrument;
 
       this.isLoaded = true;
       this.isLoading = false;
