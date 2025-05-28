@@ -1,35 +1,23 @@
-// frontend/src/lib/realisticPianoSynth.ts
-import { instrument as soundfontInstrument } from 'soundfont-player';
-
+// frontend/src/lib/pianoSynthesizer.ts - VERSÃO WEB AUDIO SIMPLES (SEM SOUNDFONT)
 interface WindowWithAudioContext extends Window {
   webkitAudioContext?: typeof AudioContext;
 }
 
-interface PianoInstrument {
-  play: (noteName: string, time: number, options?: {
-    duration?: number;
-    gain?: number;
-  }) => NoteInstance;
-}
-
-interface NoteInstance {
-  stop: () => void;
-}
-
-export class RealisticPianoSynth {
+export class SimpleWebAudioPiano {
   private audioContext: AudioContext | null = null;
-  private piano: PianoInstrument | null = null;
-  private isLoaded = false;
-  private isLoading = false;
-  private activeNotes: Map<number, NoteInstance> = new Map();
+  private isInitialized = false;
+  private activeNotes: Map<number, { oscillator: OscillatorNode; gainNode: GainNode; oscillator2?: OscillatorNode; gainNode2?: GainNode }> = new Map();
 
   constructor() {
-    this.initializeAudio();
+    if (typeof window !== 'undefined') {
+      this.initializeAudio();
+    }
   }
 
   private async initializeAudio(): Promise<void> {
+    if (this.isInitialized) return;
+    
     try {
-      // Interface para window com webkitAudioContext
       const windowWithAudio = window as WindowWithAudioContext;
       const AudioContextClass = window.AudioContext || windowWithAudio.webkitAudioContext;
       
@@ -38,40 +26,17 @@ export class RealisticPianoSynth {
       }
       
       this.audioContext = new AudioContextClass();
-      console.log('🎹 Realistic Piano: AudioContext inicializado');
+      this.isInitialized = true;
+      console.log('🎹 Simple Web Audio Piano: AudioContext inicializado');
     } catch (error) {
       console.error('❌ Erro ao inicializar AudioContext:', error);
+      this.isInitialized = false;
     }
   }
 
-  async loadPiano(): Promise<boolean> {
-    if (this.isLoaded) return true;
-    if (this.isLoading) return false;
-    if (!this.audioContext) return false;
-
-    this.isLoading = true;
-
-    try {
-      console.log('🎹 Carregando piano realista...');
-      
-      // Carregar soundfont do piano
-      this.piano = await soundfontInstrument(this.audioContext, 'acoustic_grand_piano', {
-        soundfont: 'MusyngKite', // Soundfont de alta qualidade
-        nameToUrl: (name: string, soundfont: string, format: string) => {
-          return `https://gleitz.github.io/midi-js-soundfonts/${soundfont}/${name}-${format}.js`;
-        },
-        gain: 0.7 // Volume
-      }) as PianoInstrument;
-
-      this.isLoaded = true;
-      this.isLoading = false;
-      console.log('✅ Piano realista carregado com sucesso!');
-      return true;
-    } catch (error) {
-      console.error('❌ Erro ao carregar piano realista:', error);
-      this.isLoading = false;
-      return false;
-    }
+  // Converter número MIDI para frequência
+  private midiToFrequency(midiNote: number): number {
+    return 440 * Math.pow(2, (midiNote - 69) / 12);
   }
 
   // Converter número MIDI para nome da nota
@@ -83,40 +48,93 @@ export class RealisticPianoSynth {
   }
 
   async playNote(midiNote: number, velocity: number = 80, duration: number = 1000): Promise<void> {
-    // Verificar se o piano está carregado
-    if (!this.isLoaded) {
-      const loaded = await this.loadPiano();
-      if (!loaded) {
-        console.error('❌ Piano não pôde ser carregado');
-        return;
-      }
+    if (!this.isInitialized) {
+      await this.initializeAudio();
     }
 
-    if (!this.piano || !this.audioContext) return;
-
-    // Retomar contexto se suspenso
-    if (this.audioContext.state === 'suspended') {
-      await this.audioContext.resume();
+    if (!this.audioContext) {
+      console.error('❌ AudioContext não disponível');
+      return;
     }
 
     try {
-      const noteName = this.midiToNoteName(midiNote);
-      console.log(`🎵 Tocando nota: ${noteName} (MIDI: ${midiNote})`);
+      // Retomar contexto se suspenso
+      if (this.audioContext.state === 'suspended') {
+        await this.audioContext.resume();
+      }
 
-      // Tocar a nota com velocity e duração
-      const noteInstance = this.piano.play(noteName, this.audioContext.currentTime, {
-        duration: duration / 1000, // Converter para segundos
-        gain: velocity / 127 // Normalizar velocity
+      // Parar nota anterior se existir
+      this.stopNote(midiNote);
+
+      const frequency = this.midiToFrequency(midiNote);
+      const noteName = this.midiToNoteName(midiNote);
+      
+      console.log(`🎵 Tocando nota: ${noteName} (${frequency.toFixed(2)}Hz)`);
+
+      // Criar oscilador para a fundamental
+      const oscillator = this.audioContext.createOscillator();
+      const gainNode = this.audioContext.createGain();
+      
+      // Configurar som mais realista de piano
+      oscillator.type = 'triangle'; // Som mais suave que square
+      oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+
+      // Adicionar harmônicos para som mais rico
+      const oscillator2 = this.audioContext.createOscillator();
+      const gainNode2 = this.audioContext.createGain();
+      
+      oscillator2.type = 'sine';
+      oscillator2.frequency.setValueAtTime(frequency * 2, this.audioContext.currentTime); // Oitava
+      
+      // Volume baseado na velocity
+      const volume = Math.max(0.1, Math.min(0.8, velocity / 127));
+      
+      // Envelope ADSR para som mais natural
+      const attackTime = 0.01;
+      const decayTime = 0.3;
+      const sustainLevel = volume * 0.7;
+      const releaseTime = duration > 0 ? Math.min(1.0, duration / 1000 * 0.3) : 1.0;
+      
+      const now = this.audioContext.currentTime;
+      
+      // Envelope para fundamental
+      gainNode.gain.setValueAtTime(0, now);
+      gainNode.gain.linearRampToValueAtTime(volume, now + attackTime);
+      gainNode.gain.exponentialRampToValueAtTime(sustainLevel, now + attackTime + decayTime);
+      
+      // Envelope para harmônico (mais suave)
+      gainNode2.gain.setValueAtTime(0, now);
+      gainNode2.gain.linearRampToValueAtTime(volume * 0.3, now + attackTime);
+      gainNode2.gain.exponentialRampToValueAtTime(sustainLevel * 0.3, now + attackTime + decayTime);
+
+      // Conectar osciladores
+      oscillator.connect(gainNode);
+      gainNode.connect(this.audioContext.destination);
+      
+      oscillator2.connect(gainNode2);
+      gainNode2.connect(this.audioContext.destination);
+
+      // Iniciar osciladores
+      oscillator.start(now);
+      oscillator2.start(now);
+
+      // Armazenar para controle
+      this.activeNotes.set(midiNote, { 
+        oscillator, 
+        gainNode,
+        oscillator2,
+        gainNode2
       });
 
-      // Armazenar para poder parar depois
-      this.activeNotes.set(midiNote, noteInstance);
-
-      // Auto-parar após a duração
+      // Auto-parar após duração se especificada
       if (duration > 0) {
+        // Release
+        gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration / 1000);
+        gainNode2.gain.exponentialRampToValueAtTime(0.001, now + duration / 1000);
+        
         setTimeout(() => {
           this.stopNote(midiNote);
-        }, duration);
+        }, duration + releaseTime * 1000);
       }
 
     } catch (error) {
@@ -127,16 +145,40 @@ export class RealisticPianoSynth {
   async playChord(midiNotes: number[], velocity: number = 80, duration: number = 1000): Promise<void> {
     console.log(`🎵 Tocando acorde: ${midiNotes.map(n => this.midiToNoteName(n)).join(', ')}`);
     
-    // Tocar todas as notas simultaneamente
-    const promises = midiNotes.map(note => this.playNote(note, velocity, duration));
-    await Promise.all(promises);
+    try {
+      const promises = midiNotes.map(note => this.playNote(note, velocity, duration));
+      await Promise.all(promises);
+    } catch (error) {
+      console.error('❌ Erro ao tocar acorde:', error);
+    }
   }
 
   stopNote(midiNote: number): void {
-    const noteInstance = this.activeNotes.get(midiNote);
-    if (noteInstance && noteInstance.stop) {
+    const noteData = this.activeNotes.get(midiNote);
+    if (noteData) {
       try {
-        noteInstance.stop();
+        const { oscillator, gainNode, oscillator2, gainNode2 } = noteData;
+        
+        if (this.audioContext) {
+          const now = this.audioContext.currentTime;
+          
+          // Release gradual
+          gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+          if (gainNode2) {
+            gainNode2.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+          }
+          
+          // Parar osciladores após release
+          setTimeout(() => {
+            try {
+              oscillator.stop();
+              if (oscillator2) oscillator2.stop();
+            } catch {
+              // Oscilador já parado
+            }
+          }, 150);
+        }
+        
         this.activeNotes.delete(midiNote);
         console.log(`🛑 Parou nota: ${this.midiToNoteName(midiNote)}`);
       } catch (error) {
@@ -147,36 +189,72 @@ export class RealisticPianoSynth {
 
   stopAllNotes(): void {
     console.log('🛑 Parando todas as notas');
-    this.activeNotes.forEach((noteInstance, midiNote) => {
+    const activeNotesCopy = new Map(this.activeNotes);
+    activeNotesCopy.forEach((_, midiNote) => {
       this.stopNote(midiNote);
     });
     this.activeNotes.clear();
   }
 
-  // Getter para verificar se está carregado
+  // Getters
   get loaded(): boolean {
-    return this.isLoaded;
+    return this.isInitialized;
   }
 
   get loading(): boolean {
-    return this.isLoading;
+    return false; // Web Audio não precisa carregar
   }
 
-  // Pré-carregar o piano (usar no início da aplicação)
+  get initialized(): boolean {
+    return this.isInitialized;
+  }
+
+  // Pré-carregar (não faz nada, mas mantém compatibilidade)
   async preload(): Promise<boolean> {
-    return await this.loadPiano();
+    if (!this.isInitialized) {
+      await this.initializeAudio();
+    }
+    return this.isInitialized;
+  }
+
+  // Teste de áudio
+  async testAudio(): Promise<boolean> {
+    try {
+      if (!this.audioContext) return false;
+      
+      if (this.audioContext.state === 'suspended') {
+        await this.audioContext.resume();
+      }
+      
+      return this.audioContext.state === 'running';
+    } catch (error) {
+      console.error('❌ Erro no teste de áudio:', error);
+      return false;
+    }
+  }
+
+  // Limpar recursos
+  cleanup(): void {
+    this.stopAllNotes();
+    
+    if (this.audioContext && this.audioContext.state !== 'closed') {
+      this.audioContext.close();
+    }
+    
+    this.audioContext = null;
+    this.isInitialized = false;
   }
 }
 
 // Instância singleton
-let realisticPianoInstance: RealisticPianoSynth | null = null;
+let simplePianoInstance: SimpleWebAudioPiano | null = null;
 
-export function getRealisticPiano(): RealisticPianoSynth {
-  if (!realisticPianoInstance) {
-    realisticPianoInstance = new RealisticPianoSynth();
+export function getSimpleWebAudioPiano(): SimpleWebAudioPiano {
+  if (!simplePianoInstance) {
+    simplePianoInstance = new SimpleWebAudioPiano();
   }
-  return realisticPianoInstance;
+  return simplePianoInstance;
 }
 
-// Export default para compatibilidade
-export const realisticPiano = getRealisticPiano();
+// Export para compatibilidade com o código existente
+export const realisticPiano = getSimpleWebAudioPiano();

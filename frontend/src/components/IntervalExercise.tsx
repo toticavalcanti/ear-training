@@ -1,8 +1,8 @@
-// frontend/src/components/IntervalExercise.tsx - VERSÃO COM SOM REALISTA
+// frontend/src/components/IntervalExercise.tsx - VERSÃO CORRIGIDA
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { realisticPiano } from '@/lib/pianoSynthesizer';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { getSimpleWebAudioPiano } from '@/lib/pianoSynthesizer';
 import BeautifulPianoKeyboard from './BeautifulPianoKeyboard';
 
 interface IntervalExerciseProps {
@@ -39,24 +39,30 @@ export default function IntervalExercise({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPianoLoaded, setIsPianoLoaded] = useState(false);
   const [isLoadingPiano, setIsLoadingPiano] = useState(false);
+  const [pianoError, setPianoError] = useState<string | null>(null);
+  
+  // Refs para controle de timeouts
+  const playTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const secondNoteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pianoRef = useRef(getSimpleWebAudioPiano());
 
-  // Gerar um intervalo aleatorio baseado na dificuldade
-  const generateInterval = useCallback(() => {
-    let availableIntervals: string[] = [];
-    
+  // Filtrar intervalos baseado na dificuldade
+  const getAvailableIntervals = useCallback(() => {
     switch (difficulty) {
       case 'beginner':
-        availableIntervals = ['M2', 'M3', 'P4', 'P5', 'P8'];
-        break;
+        return ['M2', 'M3', 'P4', 'P5', 'P8'];
       case 'intermediate':
-        availableIntervals = ['m2', 'M2', 'm3', 'M3', 'P4', 'P5', 'M6', 'P8'];
-        break;
+        return ['m2', 'M2', 'm3', 'M3', 'P4', 'P5', 'M6', 'P8'];
       case 'advanced':
-        availableIntervals = Object.keys(INTERVALS);
-        break;
+        return Object.keys(INTERVALS);
       default:
-        availableIntervals = ['M2', 'M3', 'P4', 'P5', 'P8'];
+        return ['M2', 'M3', 'P4', 'P5', 'P8'];
     }
+  }, [difficulty]);
+
+  // Gerar um intervalo aleatório baseado na dificuldade
+  const generateInterval = useCallback(() => {
+    const availableIntervals = getAvailableIntervals();
     
     // Escolher um intervalo aleatório
     const randomInterval = availableIntervals[Math.floor(Math.random() * availableIntervals.length)];
@@ -68,36 +74,60 @@ export default function IntervalExercise({
     const secondNote = baseNote + intervalSemitones;
     
     setNotes([baseNote, secondNote]);
-    return [baseNote, secondNote];
-  }, [difficulty]);
+    return { interval: randomInterval, notes: [baseNote, secondNote] };
+  }, [getAvailableIntervals]);
+
+  // Função para tocar sequência de notas
+  const playNoteSequence = useCallback(async (noteArray: number[]) => {
+    if (noteArray.length !== 2 || !isPianoLoaded) return;
+    
+    setIsPlaying(true);
+    
+    try {
+      console.log(`🎵 Tocando sequência: ${noteArray.join(', ')}`);
+      
+      // Tocar primeira nota
+      await pianoRef.current.playNote(noteArray[0], 80, 800);
+      
+      // Esperar um pouco e tocar segunda nota
+      secondNoteTimeoutRef.current = setTimeout(async () => {
+        try {
+          await pianoRef.current.playNote(noteArray[1], 80, 800);
+        } catch (error) {
+          console.error('❌ Erro ao tocar segunda nota:', error);
+        } finally {
+          setIsPlaying(false);
+        }
+      }, 900);
+      
+    } catch (error) {
+      console.error('❌ Erro ao tocar primeira nota:', error);
+      setIsPlaying(false);
+    }
+  }, [isPianoLoaded]);
 
   // Iniciar um novo exercício
   const startExercise = useCallback(async () => {
+    // Limpar timeouts anteriores
+    if (playTimeoutRef.current) clearTimeout(playTimeoutRef.current);
+    if (secondNoteTimeoutRef.current) clearTimeout(secondNoteTimeoutRef.current);
+    
+    // Reset do estado
     setUserAnswer(null);
     setIsCorrect(null);
     setShowFeedback(false);
-    setIsPlaying(true);
-    
-    const [baseNote, secondNote] = generateInterval();
     setStartTime(Date.now());
     
-    console.log(`🎯 Novo exercício - Intervalo: ${currentInterval}`);
+    // Gerar novo intervalo
+    const { interval, notes: newNotes } = generateInterval();
     
-    // Tocar as notas sequencialmente com som de piano
-    setTimeout(async () => {
-      try {
-        await realisticPiano.playNote(baseNote, 80, 800);
-        
-        setTimeout(async () => {
-          await realisticPiano.playNote(secondNote, 80, 800);
-          setIsPlaying(false);
-        }, 900);
-      } catch (error) {
-        console.error('❌ Erro ao tocar exercício:', error);
-        setIsPlaying(false);
-      }
+    console.log(`🎯 Novo exercício - Intervalo: ${interval}`);
+    
+    // Tocar o exercício após um pequeno delay
+    playTimeoutRef.current = setTimeout(() => {
+      playNoteSequence(newNotes);
     }, 500);
-  }, [generateInterval, currentInterval]);
+  }, [generateInterval, playNoteSequence]);
 
   // Verificar a resposta do usuário
   const checkAnswer = useCallback((answer: string) => {
@@ -121,39 +151,42 @@ export default function IntervalExercise({
   // Tocar o intervalo novamente
   const playInterval = useCallback(async () => {
     if (notes.length === 2 && !isPlaying && isPianoLoaded) {
-      setIsPlaying(true);
-      
-      try {
-        console.log('🔄 Repetindo intervalo...');
-        await realisticPiano.playNote(notes[0], 80, 800);
-        
-        setTimeout(async () => {
-          await realisticPiano.playNote(notes[1], 80, 800);
-          setIsPlaying(false);
-        }, 900);
-      } catch (error) {
-        console.error('❌ Erro ao repetir intervalo:', error);
-        setIsPlaying(false);
-      }
+      await playNoteSequence(notes);
     }
-  }, [notes, isPlaying, isPianoLoaded]);
+  }, [notes, isPlaying, isPianoLoaded, playNoteSequence]);
 
   // Carregar piano quando componente monta
   useEffect(() => {
     const loadPiano = async () => {
       setIsLoadingPiano(true);
+      setPianoError(null);
+      
       try {
-        const loaded = await realisticPiano.preload();
-        setIsPianoLoaded(loaded);
+        console.log('🎹 Iniciando carregamento do piano...');
+        const loaded = await pianoRef.current.preload();
+        
+        if (loaded) {
+          setIsPianoLoaded(true);
+          console.log('✅ Piano carregado com sucesso!');
+        } else {
+          throw new Error('Falha ao carregar piano');
+        }
       } catch (error) {
         console.error('❌ Erro ao carregar piano:', error);
         setIsPianoLoaded(false);
+        setPianoError(error instanceof Error ? error.message : 'Erro desconhecido');
       } finally {
         setIsLoadingPiano(false);
       }
     };
     
     loadPiano();
+    
+    // Cleanup
+    return () => {
+      if (playTimeoutRef.current) clearTimeout(playTimeoutRef.current);
+      if (secondNoteTimeoutRef.current) clearTimeout(secondNoteTimeoutRef.current);
+    };
   }, []);
 
   // Iniciar exercício quando piano estiver carregado
@@ -163,106 +196,196 @@ export default function IntervalExercise({
     }
   }, [isPianoLoaded, isPlaying, currentInterval, startExercise]);
 
-  // Status do piano
   const getPianoStatus = () => {
+    if (pianoError) return `Erro: ${pianoError}`;
     if (isLoadingPiano) return 'Carregando piano realista...';
     if (!isPianoLoaded) return 'Piano não carregado';
     return 'Piano realista pronto!';
   };
 
+  const getStatusClass = () => {
+    if (pianoError) return 'bg-red-100 text-red-800';
+    if (isLoadingPiano) return 'bg-yellow-100 text-yellow-800';
+    if (!isPianoLoaded) return 'bg-gray-100 text-gray-600';
+    return 'bg-green-100 text-green-800';
+  };
+
+  const getDifficultyBadge = () => {
+    const badges = {
+      beginner: { label: 'Iniciante', class: 'bg-green-100 text-green-800' },
+      intermediate: { label: 'Intermediário', class: 'bg-yellow-100 text-yellow-800' },
+      advanced: { label: 'Avançado', class: 'bg-red-100 text-red-800' }
+    };
+    
+    return badges[difficulty] || badges.beginner;
+  };
+
   return (
-    <div className="interval-exercise">
-      <div className="mb-6">
-        <h2 className="text-xl font-bold mb-2">Identificação de Intervalos</h2>
-        <p className="text-gray-600">
+    <div className="interval-exercise max-w-4xl mx-auto p-6">
+      {/* Header */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-bold text-gray-900">Identificação de Intervalos</h2>
+          <span className={`px-3 py-1 rounded-full text-sm font-medium ${getDifficultyBadge().class}`}>
+            {getDifficultyBadge().label}
+          </span>
+        </div>
+        
+        <p className="text-gray-600 mb-4">
           Ouça o intervalo e identifique-o. Clique em &quot;Ouvir Novamente&quot; para repetir o som.
         </p>
         
         {/* Status do Piano */}
-        <div className={`mt-2 text-sm p-2 rounded ${
-          isPianoLoaded 
-            ? 'bg-green-100 text-green-800' 
-            : isLoadingPiano 
-              ? 'bg-yellow-100 text-yellow-800' 
-              : 'bg-red-100 text-red-800'
-        }`}>
-          🎹 {getPianoStatus()}
+        <div className={`text-sm p-3 rounded-lg ${getStatusClass()}`}>
+          <div className="flex items-center gap-2">
+            <span>🎹</span>
+            <span>{getPianoStatus()}</span>
+          </div>
         </div>
       </div>
       
-      <div className="flex justify-center mb-4">
+      {/* Controles de Áudio */}
+      <div className="flex justify-center mb-8">
         <button 
           onClick={playInterval}
           disabled={isPlaying || !isPianoLoaded}
-          className={`px-6 py-3 rounded-lg font-medium transition-all ${
+          className={`px-8 py-4 rounded-xl font-bold text-lg transition-all transform ${
             isPlaying || !isPianoLoaded
               ? 'bg-gray-400 cursor-not-allowed' 
-              : 'bg-blue-500 hover:bg-blue-600 text-white hover:scale-105'
+              : 'bg-blue-500 hover:bg-blue-600 text-white hover:scale-105 shadow-lg'
           }`}
         >
-          {isPlaying ? '🎵 Tocando...' : !isPianoLoaded ? (isLoadingPiano ? '⏳ Carregando...' : '❌ Piano não carregado') : '🎹 Ouvir Novamente'}
+          {isPlaying ? (
+            <div className="flex items-center gap-2">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              <span>🎵 Tocando...</span>
+            </div>
+          ) : !isPianoLoaded ? (
+            isLoadingPiano ? '⏳ Carregando...' : '❌ Piano não carregado'
+          ) : (
+            '🎹 Ouvir Intervalo'
+          )}
         </button>
       </div>
       
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-6">
-        {Object.entries(INTERVALS).map(([interval, { name }]) => (
-          <button
-            key={interval}
-            onClick={() => checkAnswer(interval)}
-            disabled={showFeedback || !isPianoLoaded}
-            className={`p-3 border rounded transition-colors font-medium ${
-              showFeedback
-                ? interval === currentInterval
-                  ? 'bg-green-100 border-green-500 text-green-800'
-                  : interval === userAnswer
-                    ? 'bg-red-100 border-red-500 text-red-800'
-                    : 'bg-gray-100 border-gray-300 text-gray-500'
-                : !isPianoLoaded
-                  ? 'bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed'
-                  : 'bg-gray-50 border-gray-300 hover:bg-blue-50 hover:border-blue-300 hover:scale-105'
-            }`}
-          >
-            {name} ({interval})
-          </button>
-        ))}
+      {/* Grid de Opções */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-8">
+        {Object.entries(INTERVALS).map(([interval, { name }]) => {
+          const isCorrectAnswer = showFeedback && interval === currentInterval;
+          const isUserWrongAnswer = showFeedback && interval === userAnswer && interval !== currentInterval;
+          const isDisabled = showFeedback || !isPianoLoaded;
+          
+          let buttonClass = 'p-4 border-2 rounded-xl font-bold text-center transition-all transform ';
+          
+          if (isCorrectAnswer) {
+            buttonClass += 'bg-green-100 border-green-500 text-green-800 scale-105';
+          } else if (isUserWrongAnswer) {
+            buttonClass += 'bg-red-100 border-red-500 text-red-800';
+          } else if (isDisabled) {
+            buttonClass += 'bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed';
+          } else {
+            buttonClass += 'bg-white border-gray-300 hover:bg-blue-50 hover:border-blue-400 hover:scale-105 cursor-pointer shadow-sm hover:shadow-md';
+          }
+          
+          return (
+            <button
+              key={interval}
+              onClick={() => checkAnswer(interval)}
+              disabled={isDisabled}
+              className={buttonClass}
+            >
+              <div className="text-lg mb-1">{name}</div>
+              <div className="text-sm text-gray-600">({interval})</div>
+            </button>
+          );
+        })}
       </div>
       
+      {/* Feedback */}
       {showFeedback && (
-        <div className={`p-4 rounded mb-6 ${isCorrect ? 'bg-green-100' : 'bg-red-100'}`}>
-          <p className="font-bold">
+        <div className={`p-6 rounded-xl mb-8 text-center ${
+          isCorrect ? 'bg-green-100 border-2 border-green-300' : 'bg-red-100 border-2 border-red-300'
+        }`}>
+          <div className="text-2xl mb-2">
+            {isCorrect ? '🎉' : '❌'}
+          </div>
+          <p className="text-lg font-bold mb-2">
             {isCorrect 
-              ? '✓ Correto!' 
-              : `✗ Incorreto. O intervalo correto era ${INTERVALS[currentInterval as keyof typeof INTERVALS].name} (${currentInterval}).`
+              ? '✅ Correto!' 
+              : '❌ Incorreto!'
             }
           </p>
+          {!isCorrect && currentInterval && (
+            <p className="text-gray-700">
+              O intervalo correto era <strong>{INTERVALS[currentInterval as keyof typeof INTERVALS].name}</strong> ({currentInterval})
+            </p>
+          )}
         </div>
       )}
       
-      <div className="mt-4">
+      {/* Controles de Exercício */}
+      <div className="flex justify-center gap-4 mb-8">
         <button
           onClick={startExercise}
           disabled={!isPianoLoaded || isLoadingPiano}
-          className={`px-6 py-2 rounded font-medium transition-colors ${
+          className={`px-6 py-3 rounded-xl font-bold transition-all ${
             !isPianoLoaded || isLoadingPiano
               ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
-              : 'bg-indigo-600 text-white hover:bg-indigo-700'
+              : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:scale-105 shadow-lg'
           }`}
         >
-          Próximo Exercício
+          {showFeedback ? 'Próximo Exercício' : 'Novo Exercício'}
         </button>
+        
+        {showFeedback && (
+          <button
+            onClick={playInterval}
+            disabled={isPlaying || !isPianoLoaded}
+            className={`px-6 py-3 rounded-xl font-bold transition-all ${
+              isPlaying || !isPianoLoaded
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-gray-600 text-white hover:bg-gray-700 hover:scale-105 shadow-lg'
+            }`}
+          >
+            🔄 Ouvir Novamente
+          </button>
+        )}
       </div>
       
-      <div className="mt-8">
-        <h3 className="text-lg font-semibold mb-4 text-center">🎹 Piano Virtual</h3>
-        <BeautifulPianoKeyboard 
-          width={800}
-          height={200}
-          octaves={3}
-          startNote="C3"
-          onNotePlay={(note, frequency) => {
-            console.log(`🎵 Tocando: ${note} (${frequency.toFixed(2)}Hz)`);
-          }}
-        />
+      {/* Piano Virtual */}
+      <div className="mt-12 p-6 bg-gray-50 rounded-2xl overflow-x-auto">
+        <h3 className="text-xl font-bold mb-6 text-center text-gray-800">
+          🎹 Piano Virtual
+        </h3>
+        <p className="text-sm text-gray-600 text-center mb-6">
+          Use o piano abaixo para explorar os intervalos ou praticar suas habilidades
+        </p>
+        <div className="flex justify-center">
+          <BeautifulPianoKeyboard 
+            width={1000}
+            height={220}
+            octaves={4}
+            startNote="C2"
+            onNotePlay={(note, frequency) => {
+              console.log(`🎵 Piano tocando: ${note} (${frequency.toFixed(2)}Hz)`);
+            }}
+            onNoteStop={(note) => {
+              console.log(`🛑 Piano parou: ${note}`);
+            }}
+          />
+        </div>
+      </div>
+      
+      {/* Informações do Exercício */}
+      <div className="mt-8 p-4 bg-blue-50 rounded-xl">
+        <h4 className="font-bold text-blue-900 mb-2">💡 Dicas para Identificação de Intervalos:</h4>
+        <ul className="text-sm text-blue-800 space-y-1">
+          <li>• <strong>Segunda Maior:</strong> Som como &quot;Happy Birthday&quot; (duas primeiras notas)</li>
+          <li>• <strong>Terça Maior:</strong> Som alegre, como o início de &quot;Kumbaya&quot;</li>
+          <li>• <strong>Quarta Justa:</strong> Som como &quot;Here Comes the Bride&quot; ou &quot;Amazing Grace&quot;</li>
+          <li>• <strong>Quinta Justa:</strong> Som poderoso, como &quot;Twinkle Twinkle Little Star&quot;</li>
+          <li>          • <strong>Oitava:</strong> A mesma nota, só que mais aguda</li>
+        </ul>
       </div>
     </div>
   );
