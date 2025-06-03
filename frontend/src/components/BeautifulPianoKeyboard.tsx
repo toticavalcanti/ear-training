@@ -1,10 +1,13 @@
-// frontend/src/components/IntervalExercise.tsx
+// src/components/BeautifulPianoKeyboard.tsx
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 interface BeautifulPianoKeyboardProps {
+  width?: number;
+  height?: number;
   octaves?: number;
   startNote?: string;
   onNotePlay?: (note: string, frequency: number) => void;
+  onNoteStop?: (note: string, frequency: number) => void;
 }
 
 interface MIDIConnectionEvent extends Event {
@@ -103,9 +106,12 @@ const pianoOptions = {
 } as const;
 
 const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
+  width,
+  height,
   octaves = 4,
   startNote = 'C2',
   onNotePlay,
+  onNoteStop,
 }) => {
   // Estados principais
   const [mounted, setMounted] = useState(false);
@@ -118,11 +124,11 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
   // Piano selection state
   const [selectedPiano, setSelectedPiano] = useState('grand_piano');
   const [currentInstrument, setCurrentInstrument] = useState<SoundfontPlayer | null>(null);
-  const [actualLoadedPiano, setActualLoadedPiano] = useState<string>(''); 
+  const [actualLoadedPiano, setActualLoadedPiano] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
   
   // Estado para piano HTML personalizado
   const [useHtmlPiano, setUseHtmlPiano] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   
   // Refs
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -276,8 +282,8 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
       
       console.log(`✅ === PIANO ${pianoType.toUpperCase()} CARREGADO ===`);
       
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+    } catch (loadError) {
+      const errorMessage = loadError instanceof Error ? loadError.message : String(loadError);
       console.error(`❌ Erro ao carregar piano:`, errorMessage);
       
       // Tentar versão mais leve
@@ -335,7 +341,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
       try {
         await loadPiano('grand_piano');
       } catch (loadError) {
-        console.log('⚠️ Piano padrão falhou, tentando piano leve...');
+        console.log('⚠️ Piano padrão falhou:', loadError instanceof Error ? loadError.message : 'erro desconhecido');
         await loadPiano('grand_light');
       }
       
@@ -435,10 +441,10 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
   };
 
   // Componente de Piano HTML personalizado
-  const HtmlPiano = () => {
+  const HtmlPiano = React.memo(() => {
     const [activeNotes, setActiveNotes] = useState<Set<string>>(new Set());
 
-    const playNote = async (noteData: { note: string, octave: number, midi: number }) => {
+    const playNote = useCallback(async (noteData: { note: string, octave: number, midi: number }) => {
       if (!currentInstrument) {
         console.error('❌ Piano não disponível para tocar');
         return;
@@ -465,7 +471,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
       } catch (playError) {
         console.error('❌ Erro ao tocar nota:', playError);
       }
-    };
+    }, []);
 
     // Keyboard event handler
     useEffect(() => {
@@ -494,7 +500,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
         window.removeEventListener('keydown', handleKeyDown);
         window.removeEventListener('keyup', handleKeyUp);
       };
-    }, [activeNotes]); // Removido pianoNotes das dependências
+    }, [activeNotes, playNote]);
 
     const whiteKeys = pianoNotes.filter(n => n.white);
     const blackKeys = pianoNotes.filter(n => !n.white);
@@ -565,7 +571,28 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
         </div>
       </div>
     );
-  };
+  });
+
+  HtmlPiano.displayName = 'HtmlPiano';
+
+  // Função para trocar piano
+  const changePiano = useCallback(async (pianoType: keyof typeof pianoOptions): Promise<void> => {
+    if (pianoType === selectedPiano || isLoading) return;
+    
+    console.log(`🎹 Trocando para piano: ${pianoOptions[pianoType].name}`);
+    setSelectedPiano(pianoType);
+    
+    try {
+      await loadPiano(pianoType);
+      setActualLoadedPiano(pianoType);
+      console.log('✅ Piano trocado com sucesso!');
+    } catch (changeError) {
+      const errorMessage = changeError instanceof Error ? changeError.message : String(changeError);
+      console.error('❌ Erro ao trocar piano:', errorMessage);
+      // Manter o piano anterior se a troca falhar
+      setSelectedPiano(actualLoadedPiano);
+    }
+  }, [selectedPiano, loadPiano, actualLoadedPiano, isLoading]);
 
   // Effect para carregar scripts
   useEffect(() => {
@@ -589,9 +616,8 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
             console.log('🔍 Verificando Soundfont:', typeof window.Soundfont);
             setSoundfontLoaded(true);
           };
-          soundfontScript.onerror = (scriptError) => {
-            const errorMessage = 'Erro ao carregar Soundfont Player';
-            console.error('❌', errorMessage, scriptError);
+          soundfontScript.onerror = () => {
+            console.error('❌ Erro ao carregar Soundfont Player');
             setError('Erro ao carregar Soundfont Player');
           };
           document.head.appendChild(soundfontScript);
@@ -683,6 +709,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
         initMIDI().catch((midiError) => {
           const errorMessage = midiError instanceof Error ? midiError.message : String(midiError);
           console.error('❌ Erro na inicialização do MIDI:', errorMessage);
+          // MIDI não é crítico, então não setamos erro
         });
       }, 100);
       
@@ -733,8 +760,8 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
           }
           
           // Configurações do piano ajustadas para responsividade
-          const pianoWidth = Math.min(1000, window.innerWidth - 100);
-          const pianoHeight = 180;
+          const pianoWidth = Math.min(width || 1000, window.innerWidth - 100);
+          const pianoHeight = height || 180;
 
           console.log(`🎹 Criando teclado QwertyHancock: ${pianoWidth} x ${pianoHeight}`);
 
@@ -763,6 +790,9 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
 
           keyboard.keyUp = (note: string, frequency: number) => {
             console.log(`🎵 Tecla solta: ${note}`);
+            if (onNoteStop) {
+              onNoteStop(note, frequency);
+            }
           };
 
           console.log('✅ === TECLADO QWERTY HANCOCK INICIALIZADO ===');
@@ -779,25 +809,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
     }, 1000); // Dar mais tempo para scripts carregarem
 
     return () => clearTimeout(initTimer);
-  }, [pianoReady, mounted, octaves, startNote, playPianoNote, useHtmlPiano]);
-
-  // Função para trocar piano
-  const changePiano = useCallback(async (pianoType: keyof typeof pianoOptions): Promise<void> => {
-    if (pianoType === selectedPiano) return;
-    
-    console.log(`🎹 Trocando para piano: ${pianoOptions[pianoType].name}`);
-    setSelectedPiano(pianoType);
-    
-    try {
-      await loadPiano(pianoType);
-      setActualLoadedPiano(pianoType);
-      console.log('✅ Piano trocado com sucesso!');
-    } catch (changeError) {
-      const errorMessage = changeError instanceof Error ? changeError.message : String(changeError);
-      console.error('❌ Erro ao trocar piano:', errorMessage);
-      // Manter o piano anterior se a troca falhar
-    }
-  }, [selectedPiano, loadPiano]);
+  }, [pianoReady, mounted, width, height, octaves, startNote, onNoteStop, playPianoNote, useHtmlPiano]);
 
   return (
     <div className="w-full max-w-6xl mx-auto p-4 bg-white rounded-lg shadow-lg">
@@ -1034,322 +1046,4 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
   );
 };
 
-// ===================================
-// EXERCÍCIO DE INTERVALOS
-// ===================================
-
-// Definição dos intervalos por dificuldade
-const intervalsByDifficulty = {
-  beginner: [
-    { name: 'Unísono', semitones: 0, displayName: 'Unísono (0 semitons)' },
-    { name: 'Segunda menor', semitones: 1, displayName: 'Segunda menor (1 semitom)' },
-    { name: 'Segunda maior', semitones: 2, displayName: 'Segunda maior (2 semitons)' },
-    { name: 'Terça menor', semitones: 3, displayName: 'Terça menor (3 semitons)' },
-    { name: 'Terça maior', semitones: 4, displayName: 'Terça maior (4 semitons)' },
-    { name: 'Quinta justa', semitones: 7, displayName: 'Quinta justa (7 semitons)' },
-    { name: 'Oitava', semitones: 12, displayName: 'Oitava (12 semitons)' }
-  ],
-  intermediate: [
-    { name: 'Unísono', semitones: 0, displayName: 'Unísono' },
-    { name: 'Segunda menor', semitones: 1, displayName: 'Segunda menor' },
-    { name: 'Segunda maior', semitones: 2, displayName: 'Segunda maior' },
-    { name: 'Terça menor', semitones: 3, displayName: 'Terça menor' },
-    { name: 'Terça maior', semitones: 4, displayName: 'Terça maior' },
-    { name: 'Quarta justa', semitones: 5, displayName: 'Quarta justa' },
-    { name: 'Trítono', semitones: 6, displayName: 'Trítono' },
-    { name: 'Quinta justa', semitones: 7, displayName: 'Quinta justa' },
-    { name: 'Sexta menor', semitones: 8, displayName: 'Sexta menor' },
-    { name: 'Sexta maior', semitones: 9, displayName: 'Sexta maior' },
-    { name: 'Sétima menor', semitones: 10, displayName: 'Sétima menor' },
-    { name: 'Sétima maior', semitones: 11, displayName: 'Sétima maior' },
-    { name: 'Oitava', semitones: 12, displayName: 'Oitava' }
-  ],
-  advanced: [
-    { name: 'Unísono', semitones: 0, displayName: 'Unísono' },
-    { name: 'Segunda menor', semitones: 1, displayName: 'Segunda menor' },
-    { name: 'Segunda maior', semitones: 2, displayName: 'Segunda maior' },
-    { name: 'Terça menor', semitones: 3, displayName: 'Terça menor' },
-    { name: 'Terça maior', semitones: 4, displayName: 'Terça maior' },
-    { name: 'Quarta justa', semitones: 5, displayName: 'Quarta justa' },
-    { name: 'Trítono', semitones: 6, displayName: 'Trítono' },
-    { name: 'Quinta justa', semitones: 7, displayName: 'Quinta justa' },
-    { name: 'Sexta menor', semitones: 8, displayName: 'Sexta menor' },
-    { name: 'Sexta maior', semitones: 9, displayName: 'Sexta maior' },
-    { name: 'Sétima menor', semitones: 10, displayName: 'Sétima menor' },
-    { name: 'Sétima maior', semitones: 11, displayName: 'Sétima maior' },
-    { name: 'Oitava', semitones: 12, displayName: 'Oitava' },
-    { name: 'Nona menor', semitones: 13, displayName: 'Nona menor' },
-    { name: 'Nona maior', semitones: 14, displayName: 'Nona maior' }
-  ]
-};
-
-interface IntervalExerciseProps {
-  difficulty: 'beginner' | 'intermediate' | 'advanced';
-  onComplete?: (result: {
-    correct: boolean;
-    userAnswer: string;
-    expected: string;
-    timeSpent: number;
-  }) => void;
-}
-
-const IntervalExercise: React.FC<IntervalExerciseProps> = ({ 
-  difficulty, 
-  onComplete 
-}) => {
-  // Estados do exercício
-  const [currentInterval, setCurrentInterval] = useState<{ name: string; semitones: number; displayName: string } | null>(null);
-  const [baseNote, setBaseNote] = useState<number>(60); // C4
-  const [userAnswer, setUserAnswer] = useState<string>('');
-  const [showResult, setShowResult] = useState<boolean>(false);
-  const [isCorrect, setIsCorrect] = useState<boolean>(false);
-  const [score, setScore] = useState<number>(0);
-  const [totalQuestions, setTotalQuestions] = useState<number>(0);
-  const [startTime, setStartTime] = useState<number>(0);
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
-
-  // Refs para áudio
-  const audioContextRef = useRef<AudioContext | null>(null);
-
-  // Obter intervalos disponíveis baseado na dificuldade
-  const availableIntervals = intervalsByDifficulty[difficulty];
-
-  // Converter MIDI para frequência
-  const midiToFrequency = useCallback((midi: number): number => {
-    return 440 * Math.pow(2, (midi - 69) / 12);
-  }, []);
-
-  // Inicializar áudio
-  const initAudio = useCallback(async () => {
-    if (audioContextRef.current) return;
-
-    try {
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if (AudioContextClass) {
-        audioContextRef.current = new AudioContextClass();
-      }
-    } catch {
-      console.error('AudioContext não disponível');
-    }
-  }, []);
-
-  // Tocar intervalo
-  const playInterval = useCallback(async () => {
-    if (!currentInterval || !audioContextRef.current) return;
-    
-    setIsPlaying(true);
-    
-    try {
-      if (audioContextRef.current.state === 'suspended') {
-        await audioContextRef.current.resume();
-      }
-
-      const baseFreq = midiToFrequency(baseNote);
-      const topFreq = midiToFrequency(baseNote + currentInterval.semitones);
-
-      // Tocar primeira nota
-      const osc1 = audioContextRef.current.createOscillator();
-      const gain1 = audioContextRef.current.createGain();
-      
-      osc1.type = 'triangle';
-      osc1.frequency.setValueAtTime(baseFreq, audioContextRef.current.currentTime);
-      gain1.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
-      
-      osc1.connect(gain1);
-      gain1.connect(audioContextRef.current.destination);
-      
-      osc1.start();
-      osc1.stop(audioContextRef.current.currentTime + 1);
-
-      // Tocar segunda nota após 1.2 segundos
-      setTimeout(() => {
-        if (audioContextRef.current) {
-          const osc2 = audioContextRef.current.createOscillator();
-          const gain2 = audioContextRef.current.createGain();
-          
-          osc2.type = 'triangle';
-          osc2.frequency.setValueAtTime(topFreq, audioContextRef.current.currentTime);
-          gain2.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
-          
-          osc2.connect(gain2);
-          gain2.connect(audioContextRef.current.destination);
-          
-          osc2.start();
-          osc2.stop(audioContextRef.current.currentTime + 1);
-        }
-        
-        setTimeout(() => setIsPlaying(false), 1000);
-      }, 1200);
-
-    } catch {
-      setIsPlaying(false);
-    }
-  }, [currentInterval, baseNote, midiToFrequency]);
-
-  // Gerar novo exercício
-  const generateNewExercise = useCallback(() => {
-    const randomInterval = availableIntervals[Math.floor(Math.random() * availableIntervals.length)];
-    const randomBaseNote = 60 + Math.floor(Math.random() * 8); // C4 a G4
-    
-    setCurrentInterval(randomInterval);
-    setBaseNote(randomBaseNote);
-    setUserAnswer('');
-    setShowResult(false);
-    setStartTime(Date.now());
-    
-    console.log(`🎯 Novo exercício: ${randomInterval.name} (${randomInterval.semitones} semitons) a partir da nota MIDI ${randomBaseNote}`);
-  }, [availableIntervals]);
-
-  // Verificar resposta
-  const checkAnswer = useCallback(() => {
-    if (!currentInterval || !userAnswer) return;
-
-    const correct = userAnswer === currentInterval.name;
-    const timeSpent = Date.now() - startTime;
-    
-    setIsCorrect(correct);
-    setShowResult(true);
-    setTotalQuestions(prev => prev + 1);
-    
-    if (correct) {
-      setScore(prev => prev + 1);
-    }
-
-    if (onComplete) {
-      onComplete({
-        correct,
-        userAnswer,
-        expected: currentInterval.name,
-        timeSpent
-      });
-    }
-  }, [currentInterval, userAnswer, startTime, onComplete]);
-
-  // Próxima pergunta
-  const nextQuestion = useCallback(() => {
-    generateNewExercise();
-  }, [generateNewExercise]);
-
-  // Inicialização
-  useEffect(() => {
-    initAudio();
-    generateNewExercise();
-  }, [initAudio, generateNewExercise]);
-
-  if (!currentInterval) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="text-2xl mb-2">🎯</div>
-          <div className="text-gray-600">Preparando exercício...</div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="max-w-6xl mx-auto p-6 bg-white rounded-lg shadow-lg">
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold text-gray-800">Identificação de Intervalos</h2>
-          <div className="text-sm text-gray-600">
-            Pontuação: {score}/{totalQuestions} ({totalQuestions > 0 ? Math.round((score/totalQuestions) * 100) : 0}%)
-          </div>
-        </div>
-        
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <p className="text-blue-800">
-            <strong>Dificuldade:</strong> {difficulty === 'beginner' ? 'Iniciante' : difficulty === 'intermediate' ? 'Intermediário' : 'Avançado'}
-          </p>
-          <p className="text-blue-700 text-sm mt-1">
-            Ouça o intervalo e identifique qual tipo é. Use o piano para experimentar.
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-        {/* Área do exercício */}
-        <div className="space-y-6">
-          <div className="bg-gray-50 rounded-lg p-6">
-            <h3 className="text-lg font-semibold mb-4">🎵 Exercício Atual</h3>
-            
-            <button
-              onClick={playInterval}
-              disabled={isPlaying}
-              className={`w-full py-4 px-6 rounded-lg font-semibold text-lg transition-colors ${
-                isPlaying
-                  ? 'bg-gray-400 text-white cursor-not-allowed'
-                  : 'bg-indigo-600 text-white hover:bg-indigo-700'
-              }`}
-            >
-              {isPlaying ? '🎵 Tocando...' : '🎵 Tocar Intervalo'}
-            </button>
-            
-            <div className="mt-4 text-center text-sm text-gray-600">
-              Clique para ouvir o intervalo (primeira nota → segunda nota)
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <h4 className="font-semibold">Qual intervalo você ouviu?</h4>
-            <div className="grid grid-cols-1 gap-2">
-              {availableIntervals.map((interval) => (
-                <button
-                  key={interval.name}
-                  onClick={() => setUserAnswer(interval.name)}
-                  className={`p-3 rounded-lg text-left transition-colors ${
-                    userAnswer === interval.name
-                      ? 'bg-indigo-100 border-2 border-indigo-500 text-indigo-800'
-                      : 'bg-gray-100 border-2 border-transparent hover:bg-gray-200'
-                  }`}
-                >
-                  {interval.displayName}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {userAnswer && !showResult && (
-            <button
-              onClick={checkAnswer}
-              className="w-full bg-green-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-700 transition-colors"
-            >
-              ✅ Confirmar Resposta
-            </button>
-          )}
-
-          {showResult && (
-            <div className={`p-4 rounded-lg ${isCorrect ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
-              <div className={`font-semibold ${isCorrect ? 'text-green-800' : 'text-red-800'}`}>
-                {isCorrect ? '✅ Correto!' : '❌ Incorreto'}
-              </div>
-              <div className={`text-sm mt-1 ${isCorrect ? 'text-green-700' : 'text-red-700'}`}>
-                {isCorrect 
-                  ? `Muito bem! Era realmente ${currentInterval.displayName}.`
-                  : `A resposta correta era: ${currentInterval.displayName}`
-                }
-              </div>
-              <button
-                onClick={nextQuestion}
-                className="mt-3 bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-              >
-                ➡️ Próximo Exercício
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Piano */}
-        <div>
-          <BeautifulPianoKeyboard 
-            octaves={3}
-            startNote="C3"
-            onNotePlay={(note, freq) => console.log(`Tocou: ${note} (${freq}Hz)`)} 
-          />
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default IntervalExercise;
+export default BeautifulPianoKeyboard;
