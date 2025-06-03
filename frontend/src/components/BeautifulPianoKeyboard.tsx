@@ -1,9 +1,11 @@
+// src/components/BeautifulPianoKeyboard.tsx
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 // Extend Window interface to include webkitAudioContext
 declare global {
   interface Window {
     webkitAudioContext?: typeof AudioContext;
+    playPianoNote?: (note: string, frequency: number) => Promise<void>;
   }
 }
 
@@ -133,7 +135,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
     return { buffer, detune };
   }, [currentInstrument]);
 
-  // Tocar nota
+  // Tocar nota - Esta é a função principal que será exposta no window
   const playPianoNote = useCallback(async (note: string, frequency: number) => {
     if (!audioContextRef.current || !currentInstrument) {
       console.error('❌ Piano não disponível');
@@ -197,6 +199,20 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
       console.error('❌ Erro ao tocar nota:', playError);
     }
   }, [noteNameToMidi, findClosestSample, onNotePlay, currentInstrument]);
+
+  // ✅ EXPOR A FUNÇÃO NO WINDOW PARA USO EXTERNO
+  useEffect(() => {
+    if (pianoReady && currentInstrument) {
+      console.log('✅ Expondo playPianoNote no window...');
+      window.playPianoNote = playPianoNote;
+      
+      return () => {
+        if (window.playPianoNote) {
+          delete window.playPianoNote;
+        }
+      };
+    }
+  }, [pianoReady, currentInstrument, playPianoNote]);
 
   // Handler para MIDI
   const handleMIDIMessage = useCallback((message: WebMidi.MIDIMessageEvent) => {
