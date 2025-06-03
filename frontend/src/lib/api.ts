@@ -9,7 +9,8 @@ export function getAuthHeaders() {
     throw new Error('getAuthHeaders só pode ser chamado no cliente');
   }
   
-  const token = localStorage.getItem('token');
+  // Usar 'jwtToken' em vez de 'token' para consistência com AuthContext
+  const token = localStorage.getItem('jwtToken');
   if (!token) {
     throw new Error('Token de autenticação não encontrado');
   }
@@ -27,7 +28,7 @@ export async function fetchProgress() {
   if (!response.ok) {
     if (response.status === 401) {
       // Remove token inválido
-      localStorage.removeItem('token');
+      localStorage.removeItem('jwtToken');
       throw new Error('Sessão expirada. Faça login novamente.');
     }
     throw new Error(`Erro ${response.status}: Falha ao carregar progresso`);
@@ -42,6 +43,10 @@ export async function fetchAchievements() {
   });
   
   if (!response.ok) {
+    if (response.status === 401) {
+      localStorage.removeItem('jwtToken');
+      throw new Error('Sessão expirada. Faça login novamente.');
+    }
     throw new Error('Erro ao carregar achievements');
   }
   
@@ -54,17 +59,44 @@ export async function fetchLeaderboard() {
   });
   
   if (!response.ok) {
+    if (response.status === 401) {
+      localStorage.removeItem('jwtToken');
+      throw new Error('Sessão expirada. Faça login novamente.');
+    }
     throw new Error('Erro ao carregar leaderboard');
   }
   
   return response.json();
 }
 
+export async function submitExercise(exerciseData: {
+  exerciseId: string;
+  userAnswer: string;
+  timeSpent: number;
+  attempts?: number;
+}) {
+  const response = await fetch(`${API_BASE_URL}/gamification/submit`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(exerciseData)
+  });
+  
+  if (!response.ok) {
+    if (response.status === 401) {
+      localStorage.removeItem('jwtToken');
+      throw new Error('Sessão expirada. Faça login novamente.');
+    }
+    throw new Error('Erro ao submeter exercício');
+  }
+  
+  return response.json();
+}
+
 export function isAuthenticated(): boolean {
-  return !!localStorage.getItem('token');
+  return !!localStorage.getItem('jwtToken');
 }
 
 export function logout(): void {
-  localStorage.removeItem('token');
+  localStorage.removeItem('jwtToken');
   window.location.href = '/';
 }

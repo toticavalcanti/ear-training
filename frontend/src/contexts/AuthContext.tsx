@@ -119,13 +119,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [isLoading, user]); 
 
-  // ✅ EFEITO UNIVERSAL PARA CAPTURAR TOKEN DE QUALQUER URL
+  // ✅ EFEITO PARA CAPTURAR TOKEN DE QUALQUER URL
   useEffect(() => {
     if (typeof window !== 'undefined') { 
       const jwtFromUrl = searchParams.get('token');
       const oauthError = searchParams.get('error');
 
-      // ✅ CAPTURA TOKEN DE QUALQUER PÁGINA (não só /auth/success)
+      // ✅ CAPTURA TOKEN DE QUALQUER PÁGINA (especialmente /auth/success)
       if (jwtFromUrl) {
         console.log('[AUTH_CONTEXT DEBUG] Token detectado na URL:', pathname);
         
@@ -142,20 +142,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
         refreshUser().then(refreshedUser => {
           if (refreshedUser) {
             console.log('[AUTH_CONTEXT DEBUG] Google OAuth bem-sucedido! Redirecionando para home...');
-            // ✅ REDIRECIONAR PARA HOME SE NÃO ESTIVER LÁ
-            if (pathname !== '/') {
-              router.push('/');
-            }
+            // ✅ REDIRECIONAR PARA HOME
+            router.push('/');
           } else {
             console.error('[AUTH_CONTEXT DEBUG] Falha ao obter dados do usuário com token da URL.');
             clearAuthData(); 
             router.push('/auth/login?error=google_token_validation_failed');
           }
           setIsLoading(false);
-        }).catch(err => {
-            let errorMessage = 'Erro desconhecido';
-            if (err instanceof Error) errorMessage = err.message;
-            console.error('[AUTH_CONTEXT DEBUG] Erro em refreshUser pós-Google.', errorMessage);
+        }).catch(() => {
+            console.error('[AUTH_CONTEXT DEBUG] Erro em refreshUser pós-Google.');
             clearAuthData();
             setIsLoading(false);
             router.push('/auth/login?error=google_refresh_user_exception');
@@ -189,9 +185,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       processAuthSuccess((data as AuthResponse).token, (data as AuthResponse).user);
     } catch (error) { 
       const err = error as ApiErrorResponse | Error;
-      console.error('[AUTH_CONTEXT DEBUG] login: Falha.', err.message, (err as ApiErrorResponse).isGoogleUser);
-      clearAuthData(); throw err; 
-    } finally { setIsLoading(false); }
+      console.error('[AUTH_CONTEXT DEBUG] login: Falha.', err.message);
+      clearAuthData(); 
+      throw err; 
+    } finally { 
+      setIsLoading(false); 
+    }
   };
 
   const register = async (name: string, email: string, password: string): Promise<void> => {
@@ -207,8 +206,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       processAuthSuccess((data as AuthResponse).token, (data as AuthResponse).user);
     } catch (error) { 
       console.error('[AUTH_CONTEXT DEBUG] register: Falha.', error);
-      clearAuthData(); throw error; 
-    } finally { setIsLoading(false); }
+      clearAuthData(); 
+      throw error; 
+    } finally { 
+      setIsLoading(false); 
+    }
   };
 
   const logout = async (): Promise<void> => {
@@ -219,8 +221,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const value: AuthContextType = {
-    user, isAuthenticated: !!user, isLoading, token,
-    login, register, logout, refreshUser,
+    user, 
+    isAuthenticated: !!user, 
+    isLoading, 
+    token,
+    login, 
+    register, 
+    logout, 
+    refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

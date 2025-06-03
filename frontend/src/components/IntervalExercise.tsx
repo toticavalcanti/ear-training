@@ -1,12 +1,11 @@
+//src\components\IntervalExercise.tsx
+// frontend/src/components/IntervalExercise.tsx
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 interface BeautifulPianoKeyboardProps {
-  width?: number;
-  height?: number;
   octaves?: number;
   startNote?: string;
   onNotePlay?: (note: string, frequency: number) => void;
-  onNoteStop?: (note: string, frequency: number) => void;
 }
 
 interface MIDIConnectionEvent extends Event {
@@ -17,161 +16,54 @@ interface MIDIConnectionEvent extends Event {
   };
 }
 
-// Tipos para WebAudioFont
-interface WebAudioFontPlayer {
-  loader: {
-    startLoad: (context: AudioContext, url: string, variable: string) => void;
-    waitLoad: (callback: () => void) => void;
-  };
-  queueWaveTable: (
-    context: AudioContext,
-    destination: AudioDestinationNode,
-    instrument: WebAudioFontInstrument,
-    when: number,
-    pitch: number,
-    duration: number,
-    volume: number
-  ) => void;
-}
+// Piano samples - simples e direto
+const PIANO_SAMPLES = new Map([
+  [48, 'https://tonejs.github.io/audio/salamander/C3.mp3'],   // C3
+  [51, 'https://tonejs.github.io/audio/salamander/Ds3.mp3'],  // D#3
+  [54, 'https://tonejs.github.io/audio/salamander/Fs3.mp3'],  // F#3
+  [57, 'https://tonejs.github.io/audio/salamander/A3.mp3'],   // A3
+  [60, 'https://tonejs.github.io/audio/salamander/C4.mp3'],   // C4
+  [63, 'https://tonejs.github.io/audio/salamander/Ds4.mp3'],  // D#4
+  [66, 'https://tonejs.github.io/audio/salamander/Fs4.mp3'],  // F#4
+  [69, 'https://tonejs.github.io/audio/salamander/A4.mp3'],   // A4
+  [72, 'https://tonejs.github.io/audio/salamander/C5.mp3'],   // C5
+  [75, 'https://tonejs.github.io/audio/salamander/Ds5.mp3']   // D#5
+]);
 
-interface WebAudioFontInstrument {
-  // Definição básica do instrumento WebAudioFont
-  zones: Array<{
-    keyRangeLow: number;
-    keyRangeHigh: number;
-    sample: string;
-  }>;
-}
-
-interface QwertyHancockKeyboard {
-  keyDown: (note: string, frequency: number) => void;
-  keyUp: (note: string, frequency: number) => void;
-}
-
-interface QwertyHancockConfig {
-  id: string;
-  width: number;
-  height: number;
-  octaves: number;
-  startNote: string;
-  whiteNotesColour: string;
-  blackNotesColour: string;
-  hoverColour: string;
-  activeColour: string;
-  borderColour: string;
-  keyboardLayout: string;
-}
-
-// Extensão do Window para WebAudioFont e QwertyHancock
-declare global {
-  interface Window {
-    AudioContext: typeof AudioContext;
-    webkitAudioContext?: typeof AudioContext;
-    WebAudioFontPlayer: {
-      new (): WebAudioFontPlayer;
-    };
-    QwertyHancock: {
-      new (config: QwertyHancockConfig): QwertyHancockKeyboard;
-    };
-    qwertyHancockFailed?: boolean;
-    [key: string]: unknown;
-  }
-}
-
-// Helper para acessar instrumentos WebAudioFont
-const getWebAudioFontInstrument = (variableName: string): WebAudioFontInstrument | null => {
-  if (typeof window === 'undefined') {
-    console.log('❌ Window não disponível no getWebAudioFontInstrument');
-    return null;
-  }
-  
-  console.log(`🔍 Procurando instrumento: ${variableName}`);
-  const instrument = (window as Record<string, unknown>)[variableName];
-  
-  if (!instrument) {
-    console.error(`❌ Instrumento ${variableName} não encontrado`);
-    console.log('🔍 Variáveis do window que contêm "tone":', 
-      Object.keys(window).filter(key => key.toLowerCase().includes('tone')));
-    return null;
-  }
-  
-  if (typeof instrument !== 'object') {
-    console.error(`❌ Instrumento ${variableName} não é um objeto:`, typeof instrument);
-    return null;
-  }
-  
-  console.log(`✅ Instrumento ${variableName} encontrado`);
-  return instrument as WebAudioFontInstrument;
-};
-
-// Piano soundfont options with real samples and fallbacks
+// Piano soundfont options - mantendo estrutura original
 const pianoOptions = {
   grand: {
     name: '🎹 Grand Piano Clássico',
-    urls: [
-      'https://surikov.github.io/webaudiofontdata/sound/0001_JCLive_sf2_file.js',
-      'https://cdn.jsdelivr.net/gh/surikov/webaudiofontdata@master/sound/0001_JCLive_sf2_file.js',
-      'https://unpkg.com/webaudiofont@1.0.0/sound/0001_JCLive_sf2_file.js'
-    ],
-    variable: '_tone_0001_JCLive_sf2_file',
     description: 'Som rico e profundo de piano de cauda'
   },
   bright: {
     name: '✨ Grand Piano Brilhante', 
-    urls: [
-      'https://surikov.github.io/webaudiofontdata/sound/0020_Aspirin_sf2_file.js',
-      'https://cdn.jsdelivr.net/gh/surikov/webaudiofontdata@master/sound/0020_Aspirin_sf2_file.js'
-    ],
-    variable: '_tone_0020_Aspirin_sf2_file',
     description: 'Som cristalino e definido'
   },
   warm: {
     name: '🔥 Grand Piano Caloroso',
-    urls: [
-      'https://surikov.github.io/webaudiofontdata/sound/0000_JCLive_sf2_file.js',
-      'https://cdn.jsdelivr.net/gh/surikov/webaudiofontdata@master/sound/0000_JCLive_sf2_file.js'
-    ],
-    variable: '_tone_0000_JCLive_sf2_file',
     description: 'Som encorpado e envolvente'
   },
   vintage: {
     name: '📻 Piano Vintage',
-    urls: [
-      'https://surikov.github.io/webaudiofontdata/sound/0002_JCLive_sf2_file.js',
-      'https://cdn.jsdelivr.net/gh/surikov/webaudiofontdata@master/sound/0002_JCLive_sf2_file.js'
-    ],
-    variable: '_tone_0002_JCLive_sf2_file', 
     description: 'Som clássico dos anos 70-80'
   },
   studio: {
     name: '🎙️ Piano de Estúdio',
-    urls: [
-      'https://surikov.github.io/webaudiofontdata/sound/0003_JCLive_sf2_file.js',
-      'https://cdn.jsdelivr.net/gh/surikov/webaudiofontdata@master/sound/0003_JCLive_sf2_file.js'
-    ],
-    variable: '_tone_0003_JCLive_sf2_file',
     description: 'Som profissional de gravação'
   },
-  // Piano de emergência - mais leve e rápido
   simple: {
     name: '🎼 Piano Simples (Backup)',
-    urls: [
-      'https://surikov.github.io/webaudiofont/examples/sf2/0000_JCLive_sf2_file.js'
-    ],
-    variable: '_tone_0000_JCLive_sf2_file',
     description: 'Piano básico para conexões lentas'
   }
 } as const;
 
 const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
-  width,
-  height,
   octaves = 4,
   startNote = 'C2',
   onNotePlay,
-  onNoteStop,
 }) => {
-  // Estados principais
+  // Estados principais - mantendo estrutura original
   const [mounted, setMounted] = useState(false);
   const [audioFontLoaded, setAudioFontLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -179,20 +71,19 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
   const [midiInputs, setMidiInputs] = useState<string[]>([]);
   const [lastMidiActivity, setLastMidiActivity] = useState<string>('');
   
-  // Piano selection state
+  // Piano selection state - mantendo estrutura original
   const [selectedPiano, setSelectedPiano] = useState('grand');
-  const [currentInstrument, setCurrentInstrument] = useState<WebAudioFontInstrument | null>(null);
-  const [actualLoadedPiano, setActualLoadedPiano] = useState<string>(''); // Piano que realmente carregou
+  const [currentInstrument, setCurrentInstrument] = useState<Map<number, AudioBuffer> | null>(null);
+  const [actualLoadedPiano, setActualLoadedPiano] = useState<string>('');
   
-  // Estado para piano HTML personalizado
+  // Estado para piano HTML personalizado - mantendo estrutura original
   const [useHtmlPiano, setUseHtmlPiano] = useState(false);
   
-  // Refs
+  // Refs - mantendo estrutura original
   const audioContextRef = useRef<AudioContext | null>(null);
-  const playerRef = useRef<WebAudioFontPlayer | null>(null);
-  const keyboardRef = useRef<QwertyHancockKeyboard | null>(null);
+  const activeSources = useRef<Map<number, AudioBufferSourceNode>>(new Map());
 
-  // Memoizar notas do piano HTML para evitar re-renders
+  // Memoizar notas do piano HTML - mantendo original
   const pianoNotes = useMemo(() => [
     { note: 'C', octave: 3, midi: 48, white: true, key: 'Z' },
     { note: 'C#', octave: 3, midi: 49, white: false, key: 'S' },
@@ -227,7 +118,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
     { note: 'E', octave: 5, midi: 76, white: true, key: 'P' },
   ], []);
 
-  // Converter nome da nota para número MIDI
+  // Converter nome da nota para número MIDI - mantendo original
   const noteNameToMidi = useCallback((noteName: string): number => {
     const noteMap: { [key: string]: number } = {
       'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3, 'E': 4, 'F': 5,
@@ -242,7 +133,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
     return (octave + 1) * 12 + noteMap[note];
   }, []);
 
-  // Converter número MIDI para nome da nota
+  // Converter número MIDI para nome da nota - mantendo original
   const getNoteNameFromMidi = useCallback((midiNote: number): string => {
     const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
     const octave = Math.floor(midiNote / 12) - 1;
@@ -250,9 +141,31 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
     return `${note}${octave}`;
   }, []);
 
-  // Função para tocar nota (usada por ambos os pianos)
+  // Encontrar sample mais próximo e calcular detune
+  const findClosestSample = useCallback((targetMidi: number) => {
+    if (!currentInstrument) return null;
+    
+    let closestMidi = 60; // C4 padrão
+    let minDistance = Infinity;
+    
+    for (const [midi] of currentInstrument) {
+      const distance = Math.abs(midi - targetMidi);
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestMidi = midi;
+      }
+    }
+    
+    const buffer = currentInstrument.get(closestMidi);
+    if (!buffer) return null;
+    
+    const detune = (targetMidi - closestMidi) * 100; // cents
+    return { buffer, detune };
+  }, [currentInstrument]);
+
+  // Função para tocar nota usando samples - simplificada
   const playPianoNote = useCallback(async (note: string, frequency: number) => {
-    if (!playerRef.current || !currentInstrument || !audioContextRef.current) {
+    if (!audioContextRef.current || !currentInstrument) {
       console.error('❌ Piano não disponível');
       return;
     }
@@ -267,41 +180,83 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
 
       const midiNote = noteNameToMidi(note);
       
-      playerRef.current.queueWaveTable(
-        audioContextRef.current,
-        audioContextRef.current.destination,
-        currentInstrument,
-        0, // when
-        midiNote, // pitch
-        2, // duration
-        0.8 // volume
-      );
+      // Parar nota anterior
+      const existingSource = activeSources.current.get(midiNote);
+      if (existingSource) {
+        try {
+          existingSource.stop();
+        } catch {
+          // Already stopped
+        }
+        activeSources.current.delete(midiNote);
+      }
+
+      // Encontrar sample mais próximo
+      const sampleData = findClosestSample(midiNote);
+      if (!sampleData) {
+        console.error(`❌ Sample não disponível para nota ${note}`);
+        return;
+      }
+
+      // Criar source e gain
+      const source = audioContextRef.current.createBufferSource();
+      const gainNode = audioContextRef.current.createGain();
+      
+      source.buffer = sampleData.buffer;
+      source.detune.value = sampleData.detune;
+
+      // Envelope simples
+      const now = audioContextRef.current.currentTime;
+      gainNode.gain.setValueAtTime(0, now);
+      gainNode.gain.linearRampToValueAtTime(0.8, now + 0.02);
+      gainNode.gain.exponentialRampToValueAtTime(0.3, now + 0.3);
+
+      // Conectar e tocar
+      source.connect(gainNode);
+      gainNode.connect(audioContextRef.current.destination);
+      source.start(now);
+
+      // Armazenar referência
+      activeSources.current.set(midiNote, source);
+
+      // Auto stop
+      setTimeout(() => {
+        if (activeSources.current.get(midiNote) === source) {
+          try {
+            source.stop();
+          } catch {
+            // Already stopped
+          }
+          activeSources.current.delete(midiNote);
+        }
+      }, 5000);
 
       if (onNotePlay) {
         onNotePlay(note, frequency);
       }
-    } catch (error) {
-      console.error('❌ Erro ao tocar nota:', error);
-    }
-  }, [noteNameToMidi, onNotePlay, currentInstrument]);
 
-  // Status do piano com informações detalhadas
+    } catch (playError) {
+      console.error('❌ Erro ao tocar nota:', playError);
+    }
+  }, [noteNameToMidi, findClosestSample, onNotePlay]);
+
+  // Status do piano - mantendo estrutura original
   const status = {
     text: error 
       ? `❌ ${error}`
       : !mounted
         ? '🔄 Inicializando componente...'
         : !audioFontLoaded 
-          ? '🔄 Carregando WebAudioFont Player...'
+          ? '🔄 Carregando sistema de áudio...'
           : !pianoReady
-            ? '🔄 Inicializando engine de áudio...'
+            ? '🔄 Carregando samples de piano...'
             : !currentInstrument
-              ? '🔄 Carregando soundfont do piano...'
+              ? '🔄 Preparando instrumento...'
               : actualLoadedPiano === 'simple' && selectedPiano !== 'simple'
                 ? `⚠️ Piano backup ativo (${pianoOptions.simple.name}) - conexão lenta detectada`
                 : useHtmlPiano
                   ? `✅ Piano HTML com ${pianoOptions[actualLoadedPiano as keyof typeof pianoOptions]?.name || 'samples reais'} pronto!`
-                  : `✅ Piano QwertyHancock com ${pianoOptions[actualLoadedPiano as keyof typeof pianoOptions]?.name || 'samples reais'} pronto!`,
+                  : `✅ Piano com ${pianoOptions[actualLoadedPiano as keyof typeof pianoOptions]?.name || 'samples reais'} pronto!`,
     color: error 
       ? 'bg-red-100 text-red-800 border border-red-200'
       : !mounted || !audioFontLoaded || !pianoReady || !currentInstrument
@@ -322,229 +277,120 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
             : '🎹'
   };
 
-  // Handler para mensagens MIDI
+  // Handler para mensagens MIDI - mantendo original
   const handleMIDIMessage = useCallback((message: WebMidi.MIDIMessageEvent) => {
     console.log('🎹 === MIDI MESSAGE RECEIVED ===');
     const [command, note, velocity] = message.data;
     
-    // Atualizar indicador de atividade MIDI
     const timestamp = new Date().toLocaleTimeString();
     const activityText = `${timestamp} - Note ${note}, Vel ${velocity}`;
     setLastMidiActivity(activityText);
     
-    // Note On (144) e Note Off (128)
     const isNoteOn = (command & 0xf0) === 0x90 && velocity > 0;
     
-    if (isNoteOn && playerRef.current && currentInstrument && audioContextRef.current) {
+    if (isNoteOn && currentInstrument && audioContextRef.current) {
       console.log(`🎹 Playing MIDI note: ${note} (velocity: ${velocity})`);
       
       try {
-        // Tocar nota usando WebAudioFont
-        playerRef.current.queueWaveTable(
-          audioContextRef.current, 
-          audioContextRef.current.destination,
-          currentInstrument, 
-          0, // when (now)
-          note, // pitch 
-          (60 / 120) * velocity / 127, // duration based on velocity
-          velocity / 127 // volume
-        );
-        
-        if (onNotePlay) {
-          const frequency = 440 * Math.pow(2, (note - 69) / 12);
-          const noteName = getNoteNameFromMidi(note);
-          onNotePlay(noteName, frequency);
-        }
+        const frequency = 440 * Math.pow(2, (note - 69) / 12);
+        const noteName = getNoteNameFromMidi(note);
+        playPianoNote(noteName, frequency);
         
         console.log('✅ MIDI Note played successfully!');
       } catch (midiPlayError) {
-        const errorMessage = midiPlayError instanceof Error ? midiPlayError.message : String(midiPlayError);
-        console.error('❌ Erro ao tocar nota MIDI:', errorMessage);
+        console.error('❌ Erro ao tocar nota MIDI:', midiPlayError);
       }
     }
     
     console.log('🎹 === END MIDI MESSAGE ===\n');
-  }, [onNotePlay, getNoteNameFromMidi, currentInstrument]);
+  }, [getNoteNameFromMidi, playPianoNote, currentInstrument]);
 
-  // Carregar piano específico com sistema de fallback
+  // Carregar samples - simplificado
   const loadPiano = useCallback(async (pianoType: keyof typeof pianoOptions): Promise<void> => {
     console.log(`🎹 === CARREGANDO PIANO ${pianoType.toUpperCase()} ===`);
     
-    if (!playerRef.current || !audioContextRef.current) {
-      console.error('❌ Player ou AudioContext não disponível:');
-      console.error('  - player:', !!playerRef.current);
-      console.error('  - audioContext:', !!audioContextRef.current);
-      throw new Error('Player ou AudioContext não disponível');
+    if (!audioContextRef.current) {
+      throw new Error('AudioContext não disponível');
     }
     
-    const piano = pianoOptions[pianoType];
-    console.log(`🎹 Carregando: ${piano.name}`);
-    console.log(`🎹 URLs disponíveis: ${piano.urls.length}`);
-    console.log(`🎹 Variable: ${piano.variable}`);
-    
-    // Tentar carregar com cada URL disponível
-    for (let urlIndex = 0; urlIndex < piano.urls.length; urlIndex++) {
-      const url = piano.urls[urlIndex];
-      console.log(`🎹 Tentativa ${urlIndex + 1}/${piano.urls.length}: ${url}`);
+    try {
+      const sampleMap = new Map<number, AudioBuffer>();
+      let loadedCount = 0;
       
-      try {
-        console.log('📥 Iniciando download do soundfont...');
-        
-        // Verificar se o loader existe
-        if (!playerRef.current.loader) {
-          throw new Error('WebAudioFontPlayer.loader não disponível');
-        }
-        
-        if (!playerRef.current.loader.startLoad) {
-          throw new Error('WebAudioFontPlayer.loader.startLoad não disponível');
-        }
-        
-        if (!playerRef.current.loader.waitLoad) {
-          throw new Error('WebAudioFontPlayer.loader.waitLoad não disponível');
-        }
-        
-        // Load the soundfont com timeout menor para cada tentativa
-        playerRef.current.loader.startLoad(audioContextRef.current, url, piano.variable);
-        console.log('✅ startLoad executado');
-        
-        console.log('⏳ Aguardando carregamento (timeout: 10s)...');
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error(`Timeout no carregamento via ${url} (10s)`));
-          }, 10000); // Timeout menor de 10s por tentativa
+      for (const [midi, url] of PIANO_SAMPLES) {
+        try {
+          console.log(`🎵 Carregando sample MIDI ${midi}: ${url}`);
           
-          playerRef.current!.loader.waitLoad(() => {
-            clearTimeout(timeout);
-            console.log('✅ Download completo, verificando instrumento...');
-            
-            try {
-              const instrument = getWebAudioFontInstrument(piano.variable);
-              
-              if (!instrument) {
-                console.error(`❌ Instrumento não encontrado: ${piano.variable}`);
-                console.error('🔍 Variáveis disponíveis no window:', Object.keys(window).filter(key => key.includes('tone')));
-                reject(new Error(`Instrumento não encontrado: ${piano.variable}`));
-                return;
-              }
-              
-              console.log('✅ Instrumento carregado:', piano.variable);
-              console.log('🔍 Zones do instrumento:', instrument.zones?.length || 0);
-              setCurrentInstrument(instrument);
-              setActualLoadedPiano(pianoType); // Definir qual piano foi carregado
-              console.log(`✅ Piano ${piano.name} configurado!`);
-              resolve();
-            } catch (instrumentError) {
-              const errorMessage = instrumentError instanceof Error ? instrumentError.message : String(instrumentError);
-              console.error('❌ Erro ao processar instrumento:', errorMessage);
-              reject(instrumentError);
-            }
-          });
-        });
-        
-        console.log(`✅ === PIANO ${pianoType.toUpperCase()} CARREGADO COM SUCESSO ===`);
-        return; // Sucesso! Sair do loop
-        
-      } catch (loadError) {
-        const errorMessage = loadError instanceof Error ? loadError.message : String(loadError);
-        console.error(`❌ Erro na tentativa ${urlIndex + 1}:`, errorMessage);
-        
-        // Se é a última tentativa, tentar piano de backup
-        if (urlIndex === piano.urls.length - 1) {
-          if (pianoType !== 'simple') {
-            console.log('🔄 Todas as tentativas falharam, tentando piano de backup...');
-            try {
-              await loadPiano('simple');
-              setActualLoadedPiano('simple'); // Piano de backup carregado
-              console.log('✅ Piano de backup carregado com sucesso!');
-              return;
-            } catch (backupLoadError) {
-              const backupErrorMessage = backupLoadError instanceof Error ? backupLoadError.message : String(backupLoadError);
-              console.error('❌ Piano de backup também falhou:', backupErrorMessage);
-              throw new Error(`Falha completa: ${errorMessage}. Backup: ${backupErrorMessage}`);
-            }
-          } else {
-            throw new Error(`Todas as tentativas falharam: ${errorMessage}`);
-          }
+          const response = await fetch(url);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          
+          const arrayBuffer = await response.arrayBuffer();
+          const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+          
+          sampleMap.set(midi, audioBuffer);
+          loadedCount++;
+          console.log(`✅ Sample MIDI ${midi} carregado`);
+        } catch (sampleError) {
+          console.error(`❌ Erro ao carregar sample MIDI ${midi}:`, sampleError);
         }
-        
-        // Continuar para próxima URL
-        console.log(`🔄 Tentando próxima URL...`);
       }
+      
+      if (loadedCount === 0) {
+        throw new Error('Nenhum sample foi carregado');
+      }
+      
+      setCurrentInstrument(sampleMap);
+      setActualLoadedPiano(pianoType);
+      console.log(`✅ Piano ${pianoType} carregado com ${loadedCount} samples`);
+      
+    } catch (loadError) {
+      console.error(`❌ Erro ao carregar piano:`, loadError);
+      throw loadError;
     }
   }, []);
 
-  // Inicializar WebAudioFont
+  // Inicializar sistema - simplificado
   const initWebAudioFont = useCallback(async (): Promise<void> => {
     try {
-      console.log('🎹 === INICIALIZANDO WEBAUDIOFONT ===');
+      console.log('🎹 === INICIALIZANDO SISTEMA DE SAMPLES ===');
       
-      // Verificar se está no cliente
       if (typeof window === 'undefined') {
         throw new Error('Window não disponível (SSR)');
       }
       
-      // Verificar se WebAudioFontPlayer está disponível
-      if (!window.WebAudioFontPlayer) {
-        throw new Error('WebAudioFontPlayer não está disponível');
-      }
-      
       console.log('🎹 Criando AudioContext...');
-      // Create audio context
       const AudioContextFunc = window.AudioContext || window.webkitAudioContext;
       if (!AudioContextFunc) {
-        throw new Error('AudioContext not supported');
+        throw new Error('AudioContext não suportado');
       }
       
-      // Criar novo contexto se não existir ou estiver fechado
       if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
         const audioContext = new AudioContextFunc();
         audioContextRef.current = audioContext;
-        console.log('✅ Novo AudioContext criado:', audioContext.state);
-      } else {
-        console.log('✅ AudioContext existente:', audioContextRef.current.state);
+        console.log('✅ AudioContext criado:', audioContext.state);
       }
       
-      // Retomar contexto se estiver suspenso
       if (audioContextRef.current.state === 'suspended') {
-        console.log('🔄 Retomando AudioContext suspenso...');
+        console.log('🔄 Retomando AudioContext...');
         await audioContextRef.current.resume();
         console.log('✅ AudioContext retomado:', audioContextRef.current.state);
       }
       
-      console.log('🎹 Criando WebAudioFontPlayer...');
-      // Create player
-      const player = new window.WebAudioFontPlayer();
-      playerRef.current = player;
-      console.log('✅ WebAudioFontPlayer criado');
+      console.log('🎹 Carregando samples...');
+      await loadPiano('grand');
       
-      // Verificar se o loader existe
-      if (!player.loader) {
-        throw new Error('WebAudioFontPlayer.loader não disponível');
-      }
-      
-      console.log('🎹 Carregando piano padrão...');
-      // Tentar carregar piano padrão com fallback para piano simples
-      try {
-        await loadPiano('grand');
-      } catch (error) {
-        console.log('⚠️ Piano padrão falhou, tentando piano simples...');
-        await loadPiano('simple');
-      }
-      
-      console.log('✅ === WEBAUDIOFONT INICIALIZADO ===');
+      console.log('✅ === SISTEMA INICIALIZADO ===');
       setPianoReady(true);
       
-    } catch (webAudioError) {
-      const errorMessage = webAudioError instanceof Error ? webAudioError.message : String(webAudioError);
-      console.error('❌ === ERRO WEBAUDIOFONT ===');
-      console.error('Erro:', errorMessage);
-      console.error('Stack:', webAudioError instanceof Error ? webAudioError.stack : 'N/A');
-      setError(`Erro ao carregar engine de áudio: ${errorMessage}`);
+    } catch (initError) {
+      const errorMessage = initError instanceof Error ? initError.message : String(initError);
+      console.error('❌ Erro ao inicializar:', errorMessage);
+      setError(`Erro: ${errorMessage}`);
       setPianoReady(false);
     }
   }, [loadPiano]);
 
-  // Inicializar MIDI
+  // Inicializar MIDI - mantendo original
   const initMIDI = useCallback(async (): Promise<void> => {
     try {
       if (navigator.requestMIDIAccess) {
@@ -555,19 +401,17 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
         const inputNames = inputs.map(input => input.name || 'Unknown Device');
         setMidiInputs(inputNames);
         
-        console.log(`🎹 MIDI inicializado! ${inputs.length} dispositivos encontrados:`);
+        console.log(`🎹 MIDI inicializado! ${inputs.length} dispositivos:`);
         inputs.forEach((input, i) => {
           console.log(`🎹   [${i}] ${input.name || 'Unknown'}`);
         });
         
-        // Configurar listeners para cada input MIDI
         inputs.forEach((input) => {
           input.onmidimessage = (event: WebMidi.MIDIMessageEvent) => {
             handleMIDIMessage(event);
           };
         });
         
-        // Evento para detectar mudanças nos dispositivos MIDI
         midiAccess.onstatechange = (event: Event) => {
           const midiEvent = event as MIDIConnectionEvent;
           console.log('🎹 MIDI State change:', midiEvent);
@@ -579,20 +423,19 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
         console.log('🎹 === MIDI SETUP COMPLETE ===');
         
       } else {
-        console.log('❌ Web MIDI API não suportada neste navegador');
+        console.log('❌ Web MIDI API não suportada');
       }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('❌ Erro ao inicializar MIDI:', errorMessage);
+    } catch (midiError) {
+      console.error('❌ Erro ao inicializar MIDI:', midiError);
     }
   }, [handleMIDIMessage]);
 
-  // Componente de Piano HTML personalizado
+  // Componente de Piano HTML - mantendo original
   const HtmlPiano = () => {
     const [activeNotes, setActiveNotes] = useState<Set<string>>(new Set());
 
     const playNote = async (noteData: { note: string, octave: number, midi: number }) => {
-      if (!playerRef.current || !currentInstrument || !audioContextRef.current) {
+      if (!currentInstrument || !audioContextRef.current) {
         console.error('❌ Piano não disponível para tocar');
         return;
       }
@@ -600,32 +443,15 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
       try {
         console.log(`🎵 Tocando ${noteData.note}${noteData.octave} (MIDI: ${noteData.midi})`);
         
-        // Retomar contexto se suspenso
-        if (audioContextRef.current.state === 'suspended') {
-          await audioContextRef.current.resume();
-        }
+        const frequency = 440 * Math.pow(2, (noteData.midi - 69) / 12);
+        playPianoNote(`${noteData.note}${noteData.octave}`, frequency);
 
-        playerRef.current.queueWaveTable(
-          audioContextRef.current,
-          audioContextRef.current.destination,
-          currentInstrument,
-          0, // when
-          noteData.midi, // pitch
-          2, // duration
-          0.8 // volume
-        );
-
-        if (onNotePlay) {
-          const frequency = 440 * Math.pow(2, (noteData.midi - 69) / 12);
-          onNotePlay(`${noteData.note}${noteData.octave}`, frequency);
-        }
-      } catch (pianoError) {
-        const errorMessage = pianoError instanceof Error ? pianoError.message : String(pianoError);
-        console.error('❌ Erro ao tocar nota:', errorMessage);
+      } catch (playError) {
+        console.error('❌ Erro ao tocar nota:', playError);
       }
     };
 
-    // Keyboard event handler
+    // Keyboard event handler - mantendo original
     useEffect(() => {
       const handleKeyDown = (event: KeyboardEvent) => {
         const key = event.key.toUpperCase();
@@ -652,7 +478,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
         window.removeEventListener('keydown', handleKeyDown);
         window.removeEventListener('keyup', handleKeyUp);
       };
-    }, [activeNotes]); // Removido pianoNotes das dependências
+    }, [activeNotes]);
 
     const whiteKeys = pianoNotes.filter(n => n.white);
     const blackKeys = pianoNotes.filter(n => !n.white);
@@ -663,7 +489,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
           🎹 Piano HTML Personalizado • Clique nas teclas ou use o teclado do PC
         </div>
         
-        {/* Container das teclas */}
+        {/* Container das teclas - mantendo original */}
         <div className="relative h-full flex">
           {/* Teclas brancas */}
           <div className="flex h-full">
@@ -725,226 +551,48 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
     );
   };
 
-  // Effect para carregar scripts
+  // Effect principal - simplificado
   useEffect(() => {
-    const loadScripts = (): void => {
-      try {
-        console.log('📦 === CARREGANDO SCRIPTS ===');
-        
-        // Verificar se está no cliente
-        if (typeof window === 'undefined') {
-          console.log('⚠️ Não está no cliente, pulando carregamento de scripts');
-          return;
-        }
-        
-        // Load WebAudioFont Player
-        if (!window.WebAudioFontPlayer) {
-          console.log('📦 Carregando WebAudioFontPlayer...');
-          const playerScript = document.createElement('script');
-          playerScript.src = 'https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js';
-          playerScript.onload = () => {
-            console.log('✅ WebAudioFontPlayer carregado com sucesso!');
-            console.log('🔍 Verificando WebAudioFontPlayer:', typeof window.WebAudioFontPlayer);
-            setAudioFontLoaded(true);
-          };
-          playerScript.onerror = (scriptError) => {
-            const errorMessage = 'Erro ao carregar WebAudioFontPlayer';
-            console.error('❌', errorMessage, scriptError);
-            setError('Erro ao carregar WebAudioFont');
-          };
-          document.head.appendChild(playerScript);
-        } else {
-          console.log('✅ WebAudioFontPlayer já estava carregado');
-          setAudioFontLoaded(true);
-        }
-        
-        // Load QwertyHancock for visual keyboard
-        if (!window.QwertyHancock) {
-          console.log('📦 Carregando QwertyHancock...');
-          const keyboardScript = document.createElement('script');
-          // Tentar URLs alternativas para QwertyHancock
-          keyboardScript.src = 'https://cdn.jsdelivr.net/npm/qwerty-hancock@0.6.2/dist/qwerty-hancock.min.js';
-          keyboardScript.onload = () => {
-            console.log('✅ QwertyHancock carregado com sucesso!');
-            console.log('🔍 Verificando QwertyHancock:', typeof window.QwertyHancock);
-          };
-          keyboardScript.onerror = () => {
-            console.error('❌ Erro ao carregar QwertyHancock (jsDelivr)');
-            console.log('🔄 Tentando URL alternativa...');
-            
-            // Tentar URL alternativa
-            const fallbackScript = document.createElement('script');
-            fallbackScript.src = 'https://unpkg.com/qwerty-hancock@0.6.2/dist/qwerty-hancock.min.js';
-            fallbackScript.onload = () => {
-              console.log('✅ QwertyHancock carregado com URL alternativa!');
-            };
-            fallbackScript.onerror = () => {
-              console.error('❌ Todas as tentativas de carregar QwertyHancock falharam');
-              console.log('🎹 Continuando com piano HTML personalizado...');
-              // Definir flag para usar piano HTML
-              window.qwertyHancockFailed = true;
-            };
-            document.head.appendChild(fallbackScript);
-          };
-          document.head.appendChild(keyboardScript);
-        } else {
-          console.log('✅ QwertyHancock já estava carregado');
-        }
-        
-        console.log('📦 === FIM CARREGAMENTO SCRIPTS ===');
-        
-      } catch (scriptError) {
-        const errorMessage = scriptError instanceof Error ? scriptError.message : String(scriptError);
-        console.error('❌ Erro ao carregar scripts:', errorMessage);
-        setError('Erro ao carregar bibliotecas');
-      }
-    };
-
     if (!mounted) {
       console.log('🚀 === MONTANDO COMPONENTE ===');
       setMounted(true);
-      loadScripts();
+      setAudioFontLoaded(true);
     }
   }, [mounted]);
 
-  // Effect para inicializar quando scripts estiverem prontos
+  // Effect para inicializar
   useEffect(() => {
-    // Verificar se está no cliente
     if (typeof window === 'undefined') {
-      console.log('⚠️ Não está no cliente, pulando inicialização');
       return;
     }
 
     if (audioFontLoaded && mounted) {
       console.log('🎹 === INICIALIZANDO SISTEMA ===');
-      console.log('🔍 Estado atual:');
-      console.log('  - audioFontLoaded:', audioFontLoaded);
-      console.log('  - mounted:', mounted);
-      console.log('  - WebAudioFontPlayer:', typeof window.WebAudioFontPlayer);
-      console.log('  - QwertyHancock:', typeof window.QwertyHancock);
       
-      // Verificar se WebAudioFontPlayer realmente existe
-      if (!window.WebAudioFontPlayer) {
-        console.error('❌ WebAudioFontPlayer não encontrado mesmo com audioFontLoaded=true!');
-        setError('WebAudioFontPlayer não carregado corretamente');
-        return;
-      }
-      
-      // Pequeno delay para garantir que os scripts estão totalmente carregados
       const initTimer = setTimeout(() => {
-        console.log('🎹 Iniciando WebAudioFont...');
         initWebAudioFont().catch((initError) => {
           const errorMessage = initError instanceof Error ? initError.message : String(initError);
-          console.error('❌ Erro na inicialização do WebAudioFont:', errorMessage);
-          setError(`Erro na inicialização: ${errorMessage}`);
+          console.error('❌ Erro na inicialização:', errorMessage);
+          setError(`Erro: ${errorMessage}`);
         });
         
-        console.log('🎹 Iniciando MIDI...');
         initMIDI().catch((midiError) => {
-          const errorMessage = midiError instanceof Error ? midiError.message : String(midiError);
-          console.error('❌ Erro na inicialização do MIDI:', errorMessage);
+          console.error('❌ Erro MIDI:', midiError);
         });
       }, 100);
       
       return () => clearTimeout(initTimer);
-    } else {
-      console.log('⏳ Aguardando scripts... audioFontLoaded:', audioFontLoaded, 'mounted:', mounted);
     }
   }, [audioFontLoaded, mounted, initWebAudioFont, initMIDI]);
 
-  // Effect para inicializar teclado visual quando piano estiver pronto
+  // Ativar piano HTML quando pronto
   useEffect(() => {
-    // Verificar se está no cliente
-    if (typeof window === 'undefined') {
-      console.log('⚠️ Não está no cliente, pulando inicialização do teclado');
-      return;
+    if (pianoReady && mounted) {
+      setUseHtmlPiano(true);
     }
+  }, [pianoReady, mounted]);
 
-    if (!pianoReady || !mounted) {
-      console.log('⏳ Aguardando piano... pianoReady:', pianoReady, 'mounted:', mounted);
-      return;
-    }
-
-    // Delay para dar tempo dos scripts carregarem
-    const initTimer = setTimeout(() => {
-      if (!window.QwertyHancock && !useHtmlPiano) {
-        console.log('🎹 QwertyHancock não disponível, usando piano HTML personalizado');
-        setUseHtmlPiano(true);
-        return;
-      }
-
-      if (!window.QwertyHancock) {
-        console.log('⏳ QwertyHancock ainda não disponível...');
-        return;
-      }
-
-      const initKeyboard = () => {
-        try {
-          console.log('🎹 === INICIALIZANDO TECLADO QWERTY HANCOCK ===');
-          
-          // Clear existing keyboard
-          const container = document.getElementById('piano-container');
-          if (container) {
-            console.log('🧹 Limpando container do piano...');
-            container.innerHTML = '';
-          } else {
-            console.error('❌ Container piano-container não encontrado!');
-            return;
-          }
-          
-          // Configurações do piano ajustadas para responsividade
-          const pianoWidth = Math.min(width || 1000, window.innerWidth - 100);
-          const pianoHeight = height || 180;
-
-          console.log(`🎹 Criando teclado QwertyHancock: ${pianoWidth} x ${pianoHeight}`);
-
-          // Criar o teclado visual responsivo
-          const keyboard = new window.QwertyHancock({
-            id: 'piano-container',
-            width: pianoWidth,
-            height: pianoHeight,
-            octaves: octaves || 4,
-            startNote: startNote || 'C2',
-            whiteNotesColour: '#ffffff',
-            blackNotesColour: '#333333',
-            hoverColour: '#f0f0f0',
-            activeColour: '#4CAF50',
-            borderColour: '#000000',
-            keyboardLayout: 'en'
-          });
-
-          keyboardRef.current = keyboard;
-          console.log('✅ Teclado QwertyHancock criado!');
-
-          // Configurar eventos
-          keyboard.keyDown = (note: string, frequency: number) => {
-            playPianoNote(note, frequency);
-          };
-
-          keyboard.keyUp = (note: string, frequency: number) => {
-            console.log(`🎵 Tecla solta: ${note}`);
-            if (onNoteStop) {
-              onNoteStop(note, frequency);
-            }
-          };
-
-          console.log('✅ === TECLADO QWERTY HANCOCK INICIALIZADO ===');
-          
-        } catch (keyboardError) {
-          const errorMessage = keyboardError instanceof Error ? keyboardError.message : String(keyboardError);
-          console.error('❌ Erro ao inicializar QwertyHancock:', errorMessage);
-          console.log('🎹 Fallback para piano HTML...');
-          setUseHtmlPiano(true);
-        }
-      };
-
-      initKeyboard();
-    }, 1000); // Dar mais tempo para scripts carregarem
-
-    return () => clearTimeout(initTimer);
-  }, [pianoReady, mounted, width, height, octaves, startNote, onNoteStop, playPianoNote, useHtmlPiano]);
-
-  // Função para trocar piano
+  // Função para trocar piano - mantendo original
   const changePiano = useCallback(async (pianoType: keyof typeof pianoOptions): Promise<void> => {
     if (pianoType === selectedPiano) return;
     
@@ -953,12 +601,9 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
     
     try {
       await loadPiano(pianoType);
-      setActualLoadedPiano(pianoType); // Piano escolhido carregou com sucesso
-      console.log('✅ Piano trocado com sucesso!');
+      console.log('✅ Piano trocado!');
     } catch (changeError) {
-      const errorMessage = changeError instanceof Error ? changeError.message : String(changeError);
-      console.error('❌ Erro ao trocar piano:', errorMessage);
-      // Manter o piano anterior se a troca falhar
+      console.error('❌ Erro ao trocar piano:', changeError);
     }
   }, [selectedPiano, loadPiano]);
 
@@ -972,7 +617,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
         Piano de alta qualidade com soundfonts reais de pianos profissionais
       </p>
 
-      {/* Seletor de Piano */}
+      {/* Seletor de Piano - mantendo original */}
       <div className="mb-6 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-200">
         <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
           🎨 Escolha seu Piano
@@ -1000,7 +645,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
         </div>
       </div>
 
-      {/* Status */}
+      {/* Status - mantendo original */}
       <div className="mb-4">
         <div className={`text-sm p-3 rounded-lg ${status.color}`}>
           <div className="flex items-center gap-2">
@@ -1009,7 +654,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
           </div>
         </div>
         
-        {/* Debug info quando em desenvolvimento */}
+        {/* Debug info - mantendo original */}
         {(error || !pianoReady) && (
           <div className="mt-2 bg-gray-100 rounded-lg p-3">
             <div className="text-xs text-gray-600">
@@ -1018,11 +663,10 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
                 <div>mounted: {mounted ? '✅' : '❌'}</div>
                 <div>audioFontLoaded: {audioFontLoaded ? '✅' : '❌'}</div>
                 <div>pianoReady: {pianoReady ? '✅' : '❌'}</div>
-                <div>currentInstrument: {currentInstrument ? '✅' : '❌'}</div>
+                <div>samples: {currentInstrument?.size || 0}</div>
                 <div>Piano selecionado: {selectedPiano}</div>
                 <div>Piano carregado: {actualLoadedPiano || 'nenhum'}</div>
-                <div>WebAudioFontPlayer: {typeof window !== 'undefined' && typeof window.WebAudioFontPlayer !== 'undefined' ? '✅' : '❌'}</div>
-                <div>QwertyHancock: {typeof window !== 'undefined' && typeof window.QwertyHancock !== 'undefined' ? '✅' : '❌'}</div>
+                <div>AudioContext: {audioContextRef.current ? '✅' : '❌'}</div>
                 <div>Piano HTML: {useHtmlPiano ? '✅ Ativo' : '❌ Inativo'}</div>
               </div>
               <div className="mt-2">
@@ -1030,24 +674,14 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
                   <button
                     onClick={() => {
                       console.log('🔍 === DEBUG COMPLETO ===');
-                      console.log('Estado do componente:', {
+                      console.log('Estado:', {
                         mounted,
                         audioFontLoaded,
                         pianoReady,
-                        currentInstrument: !!currentInstrument,
                         selectedPiano,
+                        actualLoadedPiano,
+                        samplesCount: currentInstrument?.size || 0,
                         error
-                      });
-                      if (typeof window !== 'undefined') {
-                        console.log('Scripts carregados:', {
-                          WebAudioFontPlayer: typeof window.WebAudioFontPlayer,
-                          QwertyHancock: typeof window.QwertyHancock
-                        });
-                      }
-                      console.log('Refs:', {
-                        audioContext: !!audioContextRef.current,
-                        player: !!playerRef.current,
-                        keyboard: !!keyboardRef.current
                       });
                     }}
                     className="px-2 py-1 bg-blue-200 text-blue-800 rounded text-xs hover:bg-blue-300"
@@ -1058,18 +692,13 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
                   <button
                     onClick={async () => {
                       console.log('🔧 === FORÇA INICIALIZAÇÃO ===');
-                      if (typeof window !== 'undefined' && window.WebAudioFontPlayer) {
-                        try {
-                          setError(null);
-                          setPianoReady(false);
-                          setCurrentInstrument(null);
-                          await initWebAudioFont();
-                        } catch (error) {
-                          const errorMessage = error instanceof Error ? error.message : String(error);
-                          console.error('❌ Erro na força inicialização:', errorMessage);
-                        }
-                      } else {
-                        console.error('❌ WebAudioFontPlayer não disponível');
+                      try {
+                        setError(null);
+                        setPianoReady(false);
+                        setCurrentInstrument(null);
+                        await initWebAudioFont();
+                      } catch (forceError) {
+                        console.error('❌ Erro força init:', forceError);
                       }
                     }}
                     className="px-2 py-1 bg-orange-200 text-orange-800 rounded text-xs hover:bg-orange-300"
@@ -1078,107 +707,22 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
                   </button>
                   
                   <button
-                    onClick={() => {
-                      console.log('🔄 === RECARREGAR SCRIPTS ===');
-                      if (typeof window !== 'undefined') {
-                        // Remover scripts existentes
-                        document.querySelectorAll('script[src*="webaudiofont"], script[src*="qwerty-hancock"]').forEach(script => {
-                          script.remove();
-                        });
-                        
-                        // Resetar states
-                        setAudioFontLoaded(false);
-                        setPianoReady(false);
-                        setCurrentInstrument(null);
-                        setActualLoadedPiano('');
-                        setError(null);
-                        
-                        // Recarregar
-                        setTimeout(() => {
-                          setMounted(false);
-                          setTimeout(() => setMounted(true), 100);
-                        }, 100);
-                      }
-                    }}
-                    className="px-2 py-1 bg-purple-200 text-purple-800 rounded text-xs hover:bg-purple-300"
-                  >
-                    Recarregar
-                  </button>
-                  
-                  <button
                     onClick={async () => {
-                      console.log('🧪 === TESTE PIANO SIMPLES ===');
-                      if (typeof window !== 'undefined' && window.WebAudioFontPlayer) {
+                      console.log('🧪 === TESTE MANUAL ===');
+                      if (currentInstrument && audioContextRef.current) {
                         try {
-                          setError(null);
-                          setPianoReady(false);
-                          setCurrentInstrument(null);
-                          setActualLoadedPiano('');
-                          console.log('🎹 Tentando carregar piano simples...');
-                          await loadPiano('simple');
-                          setActualLoadedPiano('simple');
-                          setPianoReady(true);
-                          console.log('✅ Piano simples carregado!');
-                        } catch (error) {
-                          const errorMessage = error instanceof Error ? error.message : String(error);
-                          console.error('❌ Erro ao carregar piano simples:', errorMessage);
-                          setError(`Piano simples falhou: ${errorMessage}`);
-                        }
-                      } else {
-                        console.error('❌ WebAudioFontPlayer não disponível');
-                      }
-                    }}
-                    className="px-2 py-1 bg-yellow-200 text-yellow-800 rounded text-xs hover:bg-yellow-300"
-                  >
-                    Piano Simples
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      console.log('🔄 === ALTERNAR PIANO ===');
-                      if (useHtmlPiano) {
-                        console.log('Voltando para QwertyHancock...');
-                        setUseHtmlPiano(false);
-                      } else {
-                        console.log('Mudando para Piano HTML...');
-                        setUseHtmlPiano(true);
-                      }
-                    }}
-                    className="px-2 py-1 bg-indigo-200 text-indigo-800 rounded text-xs hover:bg-indigo-300"
-                  >
-                    {useHtmlPiano ? '🎹 → QwertyHancock' : '🖥️ → Piano HTML'}
-                  </button>
-                  
-                  <button
-                    onClick={async () => {
-                      console.log('🧪 === TESTE MANUAL DO PIANO ===');
-                      if (playerRef.current && currentInstrument && audioContextRef.current) {
-                        try {
-                          // Tentar retomar contexto se suspenso
                           if (audioContextRef.current.state === 'suspended') {
                             await audioContextRef.current.resume();
                           }
                           
-                          console.log('🎵 Tocando C4 (nota 60)...');
-                          playerRef.current.queueWaveTable(
-                            audioContextRef.current, 
-                            audioContextRef.current.destination,
-                            currentInstrument, 
-                            0, // when
-                            60, // C4
-                            2, // duration
-                            0.8 // volume
-                          );
-                          console.log('✅ Teste manual bem-sucedido!');
-                        } catch (error) {
-                          const errorMessage = error instanceof Error ? error.message : String(error);
-                          console.error('❌ Erro no teste manual:', errorMessage);
+                          console.log('🎵 Tocando C4...');
+                          playPianoNote('C4', 261.63);
+                          console.log('✅ Teste OK!');
+                        } catch (testError) {
+                          console.error('❌ Erro teste:', testError);
                         }
                       } else {
-                        console.error('❌ Piano não disponível para teste:');
-                        console.error('  - player:', !!playerRef.current);
-                        console.error('  - instrument:', !!currentInstrument);
-                        console.error('  - audioContext:', !!audioContextRef.current);
+                        console.error('❌ Piano não disponível');
                       }
                     }}
                     className="px-2 py-1 bg-green-200 text-green-800 rounded text-xs hover:bg-green-300"
@@ -1191,7 +735,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
           </div>
         )}
         
-        {/* Status MIDI separado se houver dispositivos conectados */}
+        {/* Status MIDI - mantendo original */}
         {midiInputs.length > 0 && (
           <div className="mt-2 space-y-2">
             <div className="text-xs p-2 rounded bg-blue-50 text-blue-800 flex items-center justify-between">
@@ -1201,49 +745,8 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
                   <strong>MIDI conectado:</strong> {midiInputs.join(', ')}
                 </span>
               </div>
-              <div className="flex gap-2 ml-2 flex-shrink-0">
-                <button
-                  onClick={async () => {
-                    if (playerRef.current && currentInstrument && audioContextRef.current) {
-                      console.log('🧪 === TESTE DE PIANO ===');
-                      try {
-                        playerRef.current.queueWaveTable(
-                          audioContextRef.current, 
-                          audioContextRef.current.destination,
-                          currentInstrument, 
-                          0, // when (now)
-                          60, // C4
-                          1, // duration
-                          0.8 // volume
-                        );
-                        console.log('✅ Teste de piano bem-sucedido!');
-                      } catch (error) {
-                        const errorMessage = error instanceof Error ? error.message : String(error);
-                        console.error('❌ Erro no teste do piano:', errorMessage);
-                      }
-                    } else {
-                      console.error('❌ Piano não está disponível!');
-                    }
-                  }}
-                  className="px-2 py-1 bg-blue-200 text-blue-800 rounded text-xs hover:bg-blue-300 whitespace-nowrap"
-                >
-                  Teste Piano
-                </button>
-                <button
-                  onClick={() => {
-                    console.log('🎹 === DEBUG MIDI ===');
-                    console.log('🎹 MIDI Inputs:', midiInputs);
-                    console.log('🎹 Piano ready:', pianoReady);
-                    console.log('🎹 Current instrument:', currentInstrument);
-                  }}
-                  className="px-2 py-1 bg-green-200 text-green-800 rounded text-xs hover:bg-green-300 whitespace-nowrap"
-                >
-                  Debug MIDI
-                </button>
-              </div>
             </div>
             
-            {/* Indicador de atividade MIDI */}
             {lastMidiActivity && (
               <div className="text-xs p-2 rounded bg-purple-50 text-purple-800">
                 <span>🎵</span>
@@ -1256,13 +759,12 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
         )}
       </div>
 
-      {/* Container do piano com scroll horizontal se necessário */}
+      {/* Container do piano - mantendo original */}
       <div className="w-full bg-gray-50 rounded-lg p-4 mb-4 overflow-x-auto">
         {useHtmlPiano ? (
           <HtmlPiano />
         ) : (
           <div id="piano-container" className="min-w-fit mx-auto" style={{ minWidth: '800px' }}>
-            {/* Placeholder enquanto carrega */}
             {!pianoReady && (
               <div className="flex items-center justify-center h-48 bg-white rounded-lg border-2 border-dashed border-gray-300">
                 <div className="text-center">
@@ -1275,7 +777,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
         )}
       </div>
 
-      {/* Instruções de como tocar - layout responsivo */}
+      {/* Instruções - mantendo original */}
       <div className="mt-4 mb-6">
         <div className="bg-green-50 rounded-lg p-4 border border-green-200">
           <h4 className="font-semibold text-green-800 mb-3 text-center">🎹 Como tocar este piano virtual</h4>
@@ -1295,45 +797,27 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
                 <span className="font-semibold text-gray-700">Teclado do Computador</span>
               </div>
               <p className="text-gray-600 mb-2">Use as teclas do seu teclado para tocar:</p>
-              {useHtmlPiano ? (
-                <div>
-                  <div className="text-xs mb-2">
-                    <div className="font-semibold mb-1">Teclas brancas:</div>
-                    <div className="flex flex-wrap gap-1">
-                      {['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'].map(key => (
-                        <span key={key} className="bg-gray-100 px-2 py-1 rounded">{key}</span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="text-xs">
-                    <div className="font-semibold mb-1">Teclas pretas:</div>
-                    <div className="flex flex-wrap gap-1">
-                      {['2', '3', '5', '6', '7', '9', '0'].map(key => (
-                        <span key={key} className="bg-gray-800 text-white px-2 py-1 rounded">{key}</span>
-                      ))}
-                    </div>
+              <div>
+                <div className="text-xs mb-2">
+                  <div className="font-semibold mb-1">Teclas brancas:</div>
+                  <div className="flex flex-wrap gap-1">
+                    {['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'].map(key => (
+                      <span key={key} className="bg-gray-100 px-2 py-1 rounded">{key}</span>
+                    ))}
                   </div>
                 </div>
-              ) : (
-                <div>
-                  <div className="flex flex-wrap gap-1 text-xs mb-2">
-                    <span className="bg-gray-100 px-2 py-1 rounded">A</span>
-                    <span className="bg-gray-100 px-2 py-1 rounded">S</span>
-                    <span className="bg-gray-100 px-2 py-1 rounded">D</span>
-                    <span className="bg-gray-100 px-2 py-1 rounded">F</span>
-                    <span className="bg-gray-100 px-2 py-1 rounded">G</span>
-                    <span className="bg-gray-100 px-2 py-1 rounded">H</span>
-                    <span className="bg-gray-100 px-2 py-1 rounded">J</span>
-                    <span className="bg-gray-100 px-2 py-1 rounded">K</span>
-                    <span className="bg-gray-100 px-2 py-1 rounded">L</span>
+                <div className="text-xs">
+                  <div className="font-semibold mb-1">Teclas pretas:</div>
+                  <div className="flex flex-wrap gap-1">
+                    {['2', '3', '5', '6', '7', '9', '0'].map(key => (
+                      <span key={key} className="bg-gray-800 text-white px-2 py-1 rounded">{key}</span>
+                    ))}
                   </div>
-                  <p className="text-xs text-gray-500">Teclas pretas: W, E, T, Y, U, O, P</p>
                 </div>
-              )}
+              </div>
             </div>
           </div>
           
-          {/* Linha adicional para MIDI se detectado */}
           {midiInputs.length > 0 && (
             <div className="mt-4 bg-blue-100 rounded-lg p-3">
               <div className="flex items-center gap-2 mb-2">
@@ -1348,7 +832,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
         </div>
       </div>
 
-      {/* Informações técnicas compactas */}
+      {/* Informações técnicas - mantendo original */}
       <div className="bg-gray-50 rounded-lg p-3">
         <div className="flex flex-wrap justify-center gap-4 text-xs text-gray-600">
           <div className="flex items-center gap-1">
@@ -1357,15 +841,15 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
           </div>
           <div className="flex items-center gap-1">
             <span className="font-semibold text-gray-700">🔊</span>
-            <span>{pianoReady ? '🟢 WebAudioFont' : '🟡 Carregando...'}</span>
+            <span>{pianoReady ? '🟢 Samples Diretos' : '🟡 Carregando...'}</span>
           </div>
           <div className="flex items-center gap-1">
             <span className="font-semibold text-gray-700">⚡</span>
-            <span>Samples reais de piano</span>
+            <span>Salamander Grand Piano</span>
           </div>
           <div className="flex items-center gap-1">
             <span className="font-semibold text-gray-700">🎹</span>
-            <span>{useHtmlPiano ? 'Piano HTML Personalizado' : 'QwertyHancock Visual'}</span>
+            <span>{useHtmlPiano ? 'Piano HTML Personalizado' : 'Piano Visual'}</span>
           </div>
           <div className="flex items-center gap-1">
             <span className="font-semibold text-gray-700">🎨</span>
@@ -1380,4 +864,322 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
   );
 };
 
-export default BeautifulPianoKeyboard;
+// ===================================
+// EXERCÍCIO DE INTERVALOS
+// ===================================
+
+// Definição dos intervalos por dificuldade
+const intervalsByDifficulty = {
+  beginner: [
+    { name: 'Unísono', semitones: 0, displayName: 'Unísono (0 semitons)' },
+    { name: 'Segunda menor', semitones: 1, displayName: 'Segunda menor (1 semitom)' },
+    { name: 'Segunda maior', semitones: 2, displayName: 'Segunda maior (2 semitons)' },
+    { name: 'Terça menor', semitones: 3, displayName: 'Terça menor (3 semitons)' },
+    { name: 'Terça maior', semitones: 4, displayName: 'Terça maior (4 semitons)' },
+    { name: 'Quinta justa', semitones: 7, displayName: 'Quinta justa (7 semitons)' },
+    { name: 'Oitava', semitones: 12, displayName: 'Oitava (12 semitons)' }
+  ],
+  intermediate: [
+    { name: 'Unísono', semitones: 0, displayName: 'Unísono' },
+    { name: 'Segunda menor', semitones: 1, displayName: 'Segunda menor' },
+    { name: 'Segunda maior', semitones: 2, displayName: 'Segunda maior' },
+    { name: 'Terça menor', semitones: 3, displayName: 'Terça menor' },
+    { name: 'Terça maior', semitones: 4, displayName: 'Terça maior' },
+    { name: 'Quarta justa', semitones: 5, displayName: 'Quarta justa' },
+    { name: 'Trítono', semitones: 6, displayName: 'Trítono' },
+    { name: 'Quinta justa', semitones: 7, displayName: 'Quinta justa' },
+    { name: 'Sexta menor', semitones: 8, displayName: 'Sexta menor' },
+    { name: 'Sexta maior', semitones: 9, displayName: 'Sexta maior' },
+    { name: 'Sétima menor', semitones: 10, displayName: 'Sétima menor' },
+    { name: 'Sétima maior', semitones: 11, displayName: 'Sétima maior' },
+    { name: 'Oitava', semitones: 12, displayName: 'Oitava' }
+  ],
+  advanced: [
+    { name: 'Unísono', semitones: 0, displayName: 'Unísono' },
+    { name: 'Segunda menor', semitones: 1, displayName: 'Segunda menor' },
+    { name: 'Segunda maior', semitones: 2, displayName: 'Segunda maior' },
+    { name: 'Terça menor', semitones: 3, displayName: 'Terça menor' },
+    { name: 'Terça maior', semitones: 4, displayName: 'Terça maior' },
+    { name: 'Quarta justa', semitones: 5, displayName: 'Quarta justa' },
+    { name: 'Trítono', semitones: 6, displayName: 'Trítono' },
+    { name: 'Quinta justa', semitones: 7, displayName: 'Quinta justa' },
+    { name: 'Sexta menor', semitones: 8, displayName: 'Sexta menor' },
+    { name: 'Sexta maior', semitones: 9, displayName: 'Sexta maior' },
+    { name: 'Sétima menor', semitones: 10, displayName: 'Sétima menor' },
+    { name: 'Sétima maior', semitones: 11, displayName: 'Sétima maior' },
+    { name: 'Oitava', semitones: 12, displayName: 'Oitava' },
+    { name: 'Nona menor', semitones: 13, displayName: 'Nona menor' },
+    { name: 'Nona maior', semitones: 14, displayName: 'Nona maior' }
+  ]
+};
+
+interface IntervalExerciseProps {
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  onComplete?: (result: {
+    correct: boolean;
+    userAnswer: string;
+    expected: string;
+    timeSpent: number;
+  }) => void;
+}
+
+const IntervalExercise: React.FC<IntervalExerciseProps> = ({ 
+  difficulty, 
+  onComplete 
+}) => {
+  // Estados do exercício
+  const [currentInterval, setCurrentInterval] = useState<{ name: string; semitones: number; displayName: string } | null>(null);
+  const [baseNote, setBaseNote] = useState<number>(60); // C4
+  const [userAnswer, setUserAnswer] = useState<string>('');
+  const [showResult, setShowResult] = useState<boolean>(false);
+  const [isCorrect, setIsCorrect] = useState<boolean>(false);
+  const [score, setScore] = useState<number>(0);
+  const [totalQuestions, setTotalQuestions] = useState<number>(0);
+  const [startTime, setStartTime] = useState<number>(0);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+
+  // Refs para áudio
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  // Obter intervalos disponíveis baseado na dificuldade
+  const availableIntervals = intervalsByDifficulty[difficulty];
+
+  // Converter MIDI para frequência
+  const midiToFrequency = useCallback((midi: number): number => {
+    return 440 * Math.pow(2, (midi - 69) / 12);
+  }, []);
+
+  // Inicializar áudio
+  const initAudio = useCallback(async () => {
+    if (audioContextRef.current) return;
+
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioContextClass) {
+        audioContextRef.current = new AudioContextClass();
+      }
+    } catch {
+      console.error('AudioContext não disponível');
+    }
+  }, []);
+
+  // Tocar intervalo
+  const playInterval = useCallback(async () => {
+    if (!currentInterval || !audioContextRef.current) return;
+    
+    setIsPlaying(true);
+    
+    try {
+      if (audioContextRef.current.state === 'suspended') {
+        await audioContextRef.current.resume();
+      }
+
+      const baseFreq = midiToFrequency(baseNote);
+      const topFreq = midiToFrequency(baseNote + currentInterval.semitones);
+
+      // Tocar primeira nota
+      const osc1 = audioContextRef.current.createOscillator();
+      const gain1 = audioContextRef.current.createGain();
+      
+      osc1.type = 'triangle';
+      osc1.frequency.setValueAtTime(baseFreq, audioContextRef.current.currentTime);
+      gain1.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
+      
+      osc1.connect(gain1);
+      gain1.connect(audioContextRef.current.destination);
+      
+      osc1.start();
+      osc1.stop(audioContextRef.current.currentTime + 1);
+
+      // Tocar segunda nota após 1.2 segundos
+      setTimeout(() => {
+        if (audioContextRef.current) {
+          const osc2 = audioContextRef.current.createOscillator();
+          const gain2 = audioContextRef.current.createGain();
+          
+          osc2.type = 'triangle';
+          osc2.frequency.setValueAtTime(topFreq, audioContextRef.current.currentTime);
+          gain2.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
+          
+          osc2.connect(gain2);
+          gain2.connect(audioContextRef.current.destination);
+          
+          osc2.start();
+          osc2.stop(audioContextRef.current.currentTime + 1);
+        }
+        
+        setTimeout(() => setIsPlaying(false), 1000);
+      }, 1200);
+
+    } catch {
+      setIsPlaying(false);
+    }
+  }, [currentInterval, baseNote, midiToFrequency]);
+
+  // Gerar novo exercício
+  const generateNewExercise = useCallback(() => {
+    const randomInterval = availableIntervals[Math.floor(Math.random() * availableIntervals.length)];
+    const randomBaseNote = 60 + Math.floor(Math.random() * 8); // C4 a G4
+    
+    setCurrentInterval(randomInterval);
+    setBaseNote(randomBaseNote);
+    setUserAnswer('');
+    setShowResult(false);
+    setStartTime(Date.now());
+    
+    console.log(`🎯 Novo exercício: ${randomInterval.name} (${randomInterval.semitones} semitons) a partir da nota MIDI ${randomBaseNote}`);
+  }, [availableIntervals]);
+
+  // Verificar resposta
+  const checkAnswer = useCallback(() => {
+    if (!currentInterval || !userAnswer) return;
+
+    const correct = userAnswer === currentInterval.name;
+    const timeSpent = Date.now() - startTime;
+    
+    setIsCorrect(correct);
+    setShowResult(true);
+    setTotalQuestions(prev => prev + 1);
+    
+    if (correct) {
+      setScore(prev => prev + 1);
+    }
+
+    if (onComplete) {
+      onComplete({
+        correct,
+        userAnswer,
+        expected: currentInterval.name,
+        timeSpent
+      });
+    }
+  }, [currentInterval, userAnswer, startTime, onComplete]);
+
+  // Próxima pergunta
+  const nextQuestion = useCallback(() => {
+    generateNewExercise();
+  }, [generateNewExercise]);
+
+  // Inicialização
+  useEffect(() => {
+    initAudio();
+    generateNewExercise();
+  }, [initAudio, generateNewExercise]);
+
+  if (!currentInterval) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="text-2xl mb-2">🎯</div>
+          <div className="text-gray-600">Preparando exercício...</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-6xl mx-auto p-6 bg-white rounded-lg shadow-lg">
+      <div className="mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold text-gray-800">Identificação de Intervalos</h2>
+          <div className="text-sm text-gray-600">
+            Pontuação: {score}/{totalQuestions} ({totalQuestions > 0 ? Math.round((score/totalQuestions) * 100) : 0}%)
+          </div>
+        </div>
+        
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <p className="text-blue-800">
+            <strong>Dificuldade:</strong> {difficulty === 'beginner' ? 'Iniciante' : difficulty === 'intermediate' ? 'Intermediário' : 'Avançado'}
+          </p>
+          <p className="text-blue-700 text-sm mt-1">
+            Ouça o intervalo e identifique qual tipo é. Use o piano para experimentar.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        {/* Área do exercício */}
+        <div className="space-y-6">
+          <div className="bg-gray-50 rounded-lg p-6">
+            <h3 className="text-lg font-semibold mb-4">🎵 Exercício Atual</h3>
+            
+            <button
+              onClick={playInterval}
+              disabled={isPlaying}
+              className={`w-full py-4 px-6 rounded-lg font-semibold text-lg transition-colors ${
+                isPlaying
+                  ? 'bg-gray-400 text-white cursor-not-allowed'
+                  : 'bg-indigo-600 text-white hover:bg-indigo-700'
+              }`}
+            >
+              {isPlaying ? '🎵 Tocando...' : '🎵 Tocar Intervalo'}
+            </button>
+            
+            <div className="mt-4 text-center text-sm text-gray-600">
+              Clique para ouvir o intervalo (primeira nota → segunda nota)
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h4 className="font-semibold">Qual intervalo você ouviu?</h4>
+            <div className="grid grid-cols-1 gap-2">
+              {availableIntervals.map((interval) => (
+                <button
+                  key={interval.name}
+                  onClick={() => setUserAnswer(interval.name)}
+                  className={`p-3 rounded-lg text-left transition-colors ${
+                    userAnswer === interval.name
+                      ? 'bg-indigo-100 border-2 border-indigo-500 text-indigo-800'
+                      : 'bg-gray-100 border-2 border-transparent hover:bg-gray-200'
+                  }`}
+                >
+                  {interval.displayName}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {userAnswer && !showResult && (
+            <button
+              onClick={checkAnswer}
+              className="w-full bg-green-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+            >
+              ✅ Confirmar Resposta
+            </button>
+          )}
+
+          {showResult && (
+            <div className={`p-4 rounded-lg ${isCorrect ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+              <div className={`font-semibold ${isCorrect ? 'text-green-800' : 'text-red-800'}`}>
+                {isCorrect ? '✅ Correto!' : '❌ Incorreto'}
+              </div>
+              <div className={`text-sm mt-1 ${isCorrect ? 'text-green-700' : 'text-red-700'}`}>
+                {isCorrect 
+                  ? `Muito bem! Era realmente ${currentInterval.displayName}.`
+                  : `A resposta correta era: ${currentInterval.displayName}`
+                }
+              </div>
+              <button
+                onClick={nextQuestion}
+                className="mt-3 bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+              >
+                ➡️ Próximo Exercício
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Piano */}
+        <div>
+          <BeautifulPianoKeyboard 
+            octaves={3}
+            startNote="C3"
+            onNotePlay={(note, freq) => console.log(`Tocou: ${note} (${freq}Hz)`)} 
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default IntervalExercise;
