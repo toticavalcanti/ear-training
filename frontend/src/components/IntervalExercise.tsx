@@ -12,6 +12,7 @@ import BeautifulPianoKeyboard from './BeautifulPianoKeyboard';
 declare global {
   interface Window {
     playPianoNote?: (note: string, frequency: number) => Promise<void>;
+    stopPianoNote?: (note: string) => void;
   }
 }
 
@@ -93,12 +94,40 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
   const [totalQuestions, setTotalQuestions] = useState<number>(0);
   const [startTime, setStartTime] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [isPianoReady, setIsPianoReady] = useState<boolean>(false);
 
   // Obtém o array de intervalos baseado na dificuldade
   const availableIntervals = useMemo(
     () => intervalsByDifficulty[difficulty] || [],
     [difficulty]
   );
+
+  // -------------------------------------------------------
+  //  Verificar se piano está pronto (polling inteligente)
+  // -------------------------------------------------------
+  useEffect(() => {
+    let attempts = 0;
+    const maxAttempts = 100; // máximo 100 tentativas (20 segundos)
+    
+    const checkPianoReady = () => {
+      if (typeof window !== 'undefined' && typeof window.playPianoNote === 'function') {
+        console.log('✅ Piano ready detectado! Função disponível no window.');
+        setIsPianoReady(true);
+        return;
+      }
+      
+      attempts++;
+      if (attempts < maxAttempts) {
+        // Polling que começa rápido e diminui
+        const delay = attempts < 20 ? 100 : attempts < 50 ? 200 : 500;
+        setTimeout(checkPianoReady, delay);
+      } else {
+        console.warn('⚠️ Piano não ficou pronto após várias tentativas');
+      }
+    };
+    
+    checkPianoReady();
+  }, []);
 
   // -------------------------------------------------------
   //  Funções utilitárias
@@ -134,7 +163,10 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
   //  Função que toca o intervalo
   // -------------------------------------------------------
   const playInterval = useCallback(async () => {
-    if (!currentInterval) return;
+    if (!currentInterval || !isPianoReady) {
+      console.log('🎹 Piano ainda não está pronto ou intervalo não definido');
+      return;
+    }
 
     setIsPlaying(true);
 
@@ -145,22 +177,40 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
       const baseFreq = midiToFrequency(baseNote);
       const topFreq = midiToFrequency(baseNote + currentInterval.semitones);
 
-      console.log(`🎵 Tocando intervalo: ${baseName} → ${topName}`);
+      console.log(`🎵 Tocando intervalo melódico: ${baseName} (${baseFreq.toFixed(1)}Hz) → ${topName} (${topFreq.toFixed(1)}Hz)`);
 
-      // Verificar se a função do piano está disponível
-      if (typeof window.playPianoNote === 'function') {
+      // Capturar as funções para garantir que existam
+      const playNote = window.playPianoNote;
+      const stopNote = window.stopPianoNote;
+
+      if (typeof playNote === 'function' && typeof stopNote === 'function') {
         // Tocar primeira nota
-        await window.playPianoNote(baseName, baseFreq);
+        await playNote(baseName, baseFreq);
 
-        // Após 1.2s, toca a segunda nota
+        // Após 1.2s, parar a primeira e tocar a segunda
         setTimeout(async () => {
-          if (typeof window.playPianoNote === 'function') {
-            await window.playPianoNote(topName, topFreq);
+          // Verificar novamente se as funções ainda existem
+          const playNote2 = window.playPianoNote;
+          const stopNote2 = window.stopPianoNote;
+          
+          if (typeof playNote2 === 'function' && typeof stopNote2 === 'function') {
+            // Parar a primeira nota
+            stopNote2(baseName);
+            
+            // Pequeno delay para evitar sobreposição
+            setTimeout(async () => {
+              // Tocar segunda nota
+              await playNote2(topName, topFreq);
+              
+              // Finalizar após a segunda nota
+              setTimeout(() => setIsPlaying(false), 800);
+            }, 50);
+          } else {
+            setIsPlaying(false);
           }
-          setTimeout(() => setIsPlaying(false), 800);
         }, 1200);
       } else {
-        console.error('❌ Função playPianoNote não está disponível no window');
+        console.error('❌ Funções do piano não estão disponíveis no window');
         setIsPlaying(false);
       }
 
@@ -168,7 +218,7 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
       console.error('❌ Erro ao tocar intervalo:', err);
       setIsPlaying(false);
     }
-  }, [baseNote, currentInterval, getNoteNameFromMidi, midiToFrequency]);
+  }, [baseNote, currentInterval, getNoteNameFromMidi, midiToFrequency, isPianoReady]);
 
   // -------------------------------------------------------
   //  Gera um novo exercício aleatório
@@ -224,7 +274,12 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
   //  Ao montar: gera o primeiro exercício
   // -------------------------------------------------------
   useEffect(() => {
-    generateNewExercise();
+    // Esperar um pouco para o piano carregar
+    const timer = setTimeout(() => {
+      generateNewExercise();
+    }, 1000);
+    
+    return () => clearTimeout(timer);
   }, [generateNewExercise]);
 
   // -------------------------------------------------------
@@ -279,22 +334,45 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
       <div className="space-y-6">
         <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
           <h3 className="text-lg font-semibold mb-4">🎵 Exercício Atual</h3>
+          
+          {/* Status do Piano */}
+          {!isPianoReady && (
+            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-center gap-2 text-yellow-800">
+                <span>⏳</span>
+                <span className="text-sm">Aguardando piano carregar...</span>
+              </div>
+            </div>
+          )}
+          
           <button
             onClick={playInterval}
-            disabled={isPlaying}
+            disabled={isPlaying || !isPianoReady}
             className={`w-full py-3 sm:py-4 px-6 rounded-lg font-semibold text-base sm:text-lg transition-colors ${
-              isPlaying
+              isPlaying || !isPianoReady
                 ? 'bg-gray-400 text-white cursor-not-allowed'
                 : 'bg-indigo-600 text-white hover:bg-indigo-700'
             }`}
           >
             {isPlaying
               ? '🎵 Tocando...'
+              : !isPianoReady
+              ? '⏳ Aguardando piano...'
               : '🎵 Tocar Intervalo'}
           </button>
           <div className="mt-3 text-center text-sm text-gray-600">
             Clique para ouvir o intervalo (primeira nota → segunda nota)
           </div>
+          
+          {/* Debug info em desenvolvimento */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-2 text-xs text-gray-500 bg-gray-100 p-2 rounded">
+              Debug: Piano Ready: {isPianoReady ? '✅' : '❌'} | 
+              Base: {getNoteNameFromMidi(baseNote)} | 
+              Target: {getNoteNameFromMidi(baseNote + currentInterval.semitones)} |
+              Function Available: {typeof window !== 'undefined' && typeof window.playPianoNote === 'function' ? '✅' : '❌'}
+            </div>
+          )}
         </div>
 
         {/* ====================================== */}

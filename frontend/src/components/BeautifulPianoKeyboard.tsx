@@ -6,6 +6,7 @@ declare global {
   interface Window {
     webkitAudioContext?: typeof AudioContext;
     playPianoNote?: (note: string, frequency: number) => Promise<void>;
+    stopPianoNote?: (note: string) => void;
   }
 }
 
@@ -40,6 +41,7 @@ const PIANO_SAMPLES = new Map([
 const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
   octaves = 4,
   onNotePlay,
+  onNoteStop,
 }) => {
   // Estados principais
   const [mounted, setMounted] = useState(false);
@@ -50,10 +52,12 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
   const [lastMidiActivity, setLastMidiActivity] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [currentInstrument, setCurrentInstrument] = useState<Map<number, AudioBuffer> | null>(null);
+  const [sustainPedalPressed, setSustainPedalPressed] = useState(false);
   
   // Refs
   const audioContextRef = useRef<AudioContext | null>(null);
-  const activeSources = useRef<Map<number, AudioBufferSourceNode>>(new Map());
+  const activeSources = useRef<Map<number, { source: AudioBufferSourceNode; gainNode: GainNode }>>(new Map());
+  const sustainedNotes = useRef<Set<number>>(new Set());
 
   // Memoizar notas do piano HTML
   const pianoNotes = useMemo(() => [
@@ -135,7 +139,39 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
     return { buffer, detune };
   }, [currentInstrument]);
 
-  // Tocar nota - Esta é a função principal que será exposta no window
+  // Parar uma nota específica
+  const stopPianoNote = useCallback((note: string) => {
+    const midiNote = noteNameToMidi(note);
+    const noteData = activeSources.current.get(midiNote);
+    
+    if (noteData && !sustainPedalPressed) {
+      const { source, gainNode } = noteData;
+      const now = audioContextRef.current?.currentTime || 0;
+      
+      // Release suave
+      gainNode.gain.cancelScheduledValues(now);
+      gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      
+      setTimeout(() => {
+        try {
+          source.stop();
+        } catch {}
+        activeSources.current.delete(midiNote);
+        sustainedNotes.current.delete(midiNote);
+      }, 300);
+      
+      if (onNoteStop) {
+        const frequency = 440 * Math.pow(2, (midiNote - 69) / 12);
+        onNoteStop(note, frequency);
+      }
+    } else if (sustainPedalPressed) {
+      // Marcar para release quando o sustain for solto
+      sustainedNotes.current.add(midiNote);
+    }
+  }, [noteNameToMidi, sustainPedalPressed, onNoteStop]);
+
+  // Tocar nota - função principal
   const playPianoNote = useCallback(async (note: string, frequency: number) => {
     if (!audioContextRef.current || !currentInstrument) {
       console.error('❌ Piano não disponível');
@@ -149,14 +185,12 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
 
       const midiNote = noteNameToMidi(note);
       
-      // Parar nota anterior
-      const existingSource = activeSources.current.get(midiNote);
-      if (existingSource) {
+      // Parar nota anterior se existir
+      const existingNote = activeSources.current.get(midiNote);
+      if (existingNote) {
         try {
-          existingSource.stop();
-        } catch {
-          // Already stopped
-        }
+          existingNote.source.stop();
+        } catch {}
         activeSources.current.delete(midiNote);
       }
 
@@ -170,26 +204,17 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
       source.detune.value = sampleData.detune;
 
       const now = audioContextRef.current.currentTime;
+      
+      // Envelope natural de piano - apenas attack e sustain
       gainNode.gain.setValueAtTime(0, now);
-      gainNode.gain.linearRampToValueAtTime(0.8, now + 0.02);
-      gainNode.gain.exponentialRampToValueAtTime(0.3, now + 0.3);
+      gainNode.gain.linearRampToValueAtTime(0.8, now + 0.01); // Attack rápido
+      gainNode.gain.exponentialRampToValueAtTime(0.6, now + 0.1); // Decay inicial natural
 
       source.connect(gainNode);
       gainNode.connect(audioContextRef.current.destination);
       source.start(now);
 
-      activeSources.current.set(midiNote, source);
-
-      setTimeout(() => {
-        if (activeSources.current.get(midiNote) === source) {
-          try {
-            source.stop();
-          } catch {
-            // Already stopped
-          }
-          activeSources.current.delete(midiNote);
-        }
-      }, 5000);
+      activeSources.current.set(midiNote, { source, gainNode });
 
       if (onNotePlay) {
         onNotePlay(note, frequency);
@@ -200,19 +225,51 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
     }
   }, [noteNameToMidi, findClosestSample, onNotePlay, currentInstrument]);
 
-  // ✅ EXPOR A FUNÇÃO NO WINDOW PARA USO EXTERNO
+  // Controlar pedal de sustain
+  const handleSustainPedal = useCallback((pressed: boolean) => {
+    setSustainPedalPressed(pressed);
+    
+    if (!pressed) {
+      // Soltar todas as notas marcadas para release
+      sustainedNotes.current.forEach(midiNote => {
+        const noteData = activeSources.current.get(midiNote);
+        if (noteData) {
+          const { source, gainNode } = noteData;
+          const now = audioContextRef.current?.currentTime || 0;
+          
+          gainNode.gain.cancelScheduledValues(now);
+          gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+          gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+          
+          setTimeout(() => {
+            try {
+              source.stop();
+            } catch {}
+            activeSources.current.delete(midiNote);
+          }, 300);
+        }
+      });
+      sustainedNotes.current.clear();
+    }
+  }, []);
+
+  // ✅ EXPOR AS FUNÇÕES NO WINDOW PARA USO EXTERNO
   useEffect(() => {
     if (pianoReady && currentInstrument) {
-      console.log('✅ Expondo playPianoNote no window...');
+      console.log('✅ Expondo funções do piano no window...');
       window.playPianoNote = playPianoNote;
+      window.stopPianoNote = stopPianoNote;
       
       return () => {
         if (window.playPianoNote) {
           delete window.playPianoNote;
         }
+        if (window.stopPianoNote) {
+          delete window.stopPianoNote;
+        }
       };
     }
-  }, [pianoReady, currentInstrument, playPianoNote]);
+  }, [pianoReady, currentInstrument, playPianoNote, stopPianoNote]);
 
   // Handler para MIDI
   const handleMIDIMessage = useCallback((message: WebMidi.MIDIMessageEvent) => {
@@ -223,6 +280,8 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
     setLastMidiActivity(activityText);
     
     const isNoteOn = (command & 0xf0) === 0x90 && velocity > 0;
+    const isNoteOff = (command & 0xf0) === 0x80 || ((command & 0xf0) === 0x90 && velocity === 0);
+    const isControlChange = (command & 0xf0) === 0xB0;
     
     if (isNoteOn && currentInstrument && audioContextRef.current) {
       try {
@@ -232,8 +291,17 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
       } catch (midiPlayError) {
         console.error('❌ Erro ao tocar nota MIDI:', midiPlayError);
       }
+    } else if (isNoteOff) {
+      try {
+        const noteName = getNoteNameFromMidi(note);
+        stopPianoNote(noteName);
+      } catch (midiStopError) {
+        console.error('❌ Erro ao parar nota MIDI:', midiStopError);
+      }
+    } else if (isControlChange && note === 64) { // Sustain pedal (CC 64)
+      handleSustainPedal(velocity >= 64);
     }
-  }, [getNoteNameFromMidi, playPianoNote, currentInstrument]);
+  }, [getNoteNameFromMidi, playPianoNote, stopPianoNote, handleSustainPedal, currentInstrument]);
 
   // Carregar samples
   const loadPiano = useCallback(async (): Promise<void> => {
@@ -335,7 +403,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
   const HtmlPiano = React.memo(() => {
     const [activeNotes, setActiveNotes] = useState<Set<string>>(new Set());
 
-    const playNote = useCallback(async (noteData: { note: string, octave: number, midi: number }) => {
+    const playNote = useCallback(async (noteData: { note: string, octave: number, midi: number, key: string }) => {
       if (!currentInstrument || !audioContextRef.current) {
         console.error('❌ Piano não disponível para tocar');
         return;
@@ -343,29 +411,41 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
 
       try {
         const frequency = 440 * Math.pow(2, (noteData.midi - 69) / 12);
-        playPianoNote(`${noteData.note}${noteData.octave}`, frequency);
+        const noteName = `${noteData.note}${noteData.octave}`;
+        await playPianoNote(noteName, frequency);
+        setActiveNotes(prev => new Set(prev).add(noteData.key));
       } catch (playError) {
         console.error('❌ Erro ao tocar nota:', playError);
       }
     }, []);
 
+    const stopNote = useCallback((noteData: { note: string, octave: number, key: string }) => {
+      const noteName = `${noteData.note}${noteData.octave}`;
+      stopPianoNote(noteName);
+      setActiveNotes(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(noteData.key);
+        return newSet;
+      });
+    }, []);
+
     useEffect(() => {
       const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.repeat) return; // Ignorar repeat do teclado
+        
         const key = event.key.toUpperCase();
         const noteData = pianoNotes.find(n => n.key === key);
         if (noteData && !activeNotes.has(key)) {
-          setActiveNotes(prev => new Set(prev).add(key));
           playNote(noteData);
         }
       };
 
       const handleKeyUp = (event: KeyboardEvent) => {
         const key = event.key.toUpperCase();
-        setActiveNotes(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(key);
-          return newSet;
-        });
+        const noteData = pianoNotes.find(n => n.key === key);
+        if (noteData && activeNotes.has(key)) {
+          stopNote(noteData);
+        }
       };
 
       window.addEventListener('keydown', handleKeyDown);
@@ -375,7 +455,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
         window.removeEventListener('keydown', handleKeyDown);
         window.removeEventListener('keyup', handleKeyUp);
       };
-    }, [activeNotes, playNote]);
+    }, [activeNotes, playNote, stopNote]);
 
     const whiteKeys = pianoNotes.filter(n => n.white);
     const blackKeys = pianoNotes.filter(n => !n.white);
@@ -384,7 +464,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
       <div className="w-full bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
         <div className="text-center py-3 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200">
           <div className="text-sm text-gray-700 font-medium">
-            🎹 Piano Virtual
+            🎹 Piano Virtual {sustainPedalPressed && '🔊 SUSTAIN'}
           </div>
           <div className="text-xs text-gray-500 mt-1">
             Clique nas teclas ou use o teclado do PC
@@ -398,7 +478,9 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
                 <button
                   key={`${noteData.note}${noteData.octave}`}
                   onMouseDown={() => playNote(noteData)}
-                  className={`border-r border-gray-300 last:border-r-0 transition-all duration-150 flex flex-col justify-end items-center pb-3 relative group ${
+                  onMouseUp={() => stopNote(noteData)}
+                  onMouseLeave={() => stopNote(noteData)}
+                  className={`border-r border-gray-300 last:border-r-0 transition-all duration-150 flex flex-col justify-end items-center pb-3 relative group select-none ${
                     activeNotes.has(noteData.key) 
                       ? 'bg-green-200 shadow-inner' 
                       : 'bg-white hover:bg-gray-50 active:bg-gray-100'
@@ -432,7 +514,9 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
                   <button
                     key={`${noteData.note}${noteData.octave}`}
                     onMouseDown={() => playNote(noteData)}
-                    className={`absolute text-white font-bold flex flex-col items-center justify-end pb-2 transition-all duration-150 pointer-events-auto shadow-xl rounded-b-md ${
+                    onMouseUp={() => stopNote(noteData)}
+                    onMouseLeave={() => stopNote(noteData)}
+                    className={`absolute text-white font-bold flex flex-col items-center justify-end pb-2 transition-all duration-150 pointer-events-auto shadow-xl rounded-b-md select-none ${
                       activeNotes.has(noteData.key)
                         ? 'bg-green-700 shadow-inner'
                         : 'bg-gray-900 hover:bg-gray-800 active:bg-black'
@@ -598,7 +682,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
                 <span className="font-semibold text-gray-700">Mouse</span>
               </div>
               <p className="text-sm text-gray-600">
-                Clique diretamente nas teclas do piano para tocar as notas
+                <strong>Pressione e segure</strong> para tocar. Solte para parar a nota.
               </p>
             </div>
             
@@ -608,7 +692,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
                 <span className="font-semibold text-gray-700">Teclado do Computador</span>
               </div>
               <p className="text-sm text-gray-600 mb-3">
-                Use as teclas do seu teclado para tocar:
+                <strong>Pressione e segure</strong> as teclas para tocar. Solte para parar.
               </p>
               
               <div className="space-y-3">
@@ -645,7 +729,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
               <p className="text-sm text-blue-700">
                 <strong>Conectado:</strong> {midiInputs.join(', ')}
                 <br />
-                <span className="text-xs">Toque diretamente no seu controlador!</span>
+                <span className="text-xs">Funciona com Note On/Off e Pedal de Sustain (CC 64)!</span>
               </p>
             </div>
           )}
@@ -666,11 +750,11 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
             </div>
             <div className="flex items-center gap-1">
               <span className="font-semibold text-gray-700">⚡</span>
-              <span>Samples reais de piano</span>
+              <span>Comportamento Natural</span>
             </div>
             <div className="flex items-center gap-1">
               <span className="font-semibold text-gray-700">🎹</span>
-              <span>Piano HTML Personalizado</span>
+              <span>Note On/Off + Sustain</span>
             </div>
           </div>
         </div>
