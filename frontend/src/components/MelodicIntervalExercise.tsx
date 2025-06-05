@@ -1,4 +1,4 @@
-// src/components/IntervalExercise.tsx
+// src/components/MelodicIntervalExercise.tsx
 'use client';
 
 import React, {
@@ -17,7 +17,7 @@ declare global {
 }
 
 // =============================================
-// 🆕 INTERFACES TYPESCRIPT
+// INTERFACES TYPESCRIPT
 // =============================================
 
 interface IntervalExerciseData {
@@ -56,7 +56,7 @@ interface Achievement {
 interface UserProgressData {
   level: number;
   experience: number;
-  totalExercises: number;
+  totalExperiences: number;
   perfectScores: number;
   averageScore: number;
   streakDays: number;
@@ -94,7 +94,7 @@ interface UserProgressData {
 }
 
 // =============================================
-// 🆕 FUNÇÃO PARA ENVIAR EXERCÍCIO PARA BACKEND
+// FUNÇÃO PARA ENVIAR EXERCÍCIO PARA BACKEND
 // =============================================
 async function submitFrontendExercise(
   exerciseType: 'interval',
@@ -145,7 +145,7 @@ async function submitFrontendExercise(
 }
 
 // =============================================
-// 📊 FUNÇÃO PARA BUSCAR PROGRESSO
+// FUNÇÃO PARA BUSCAR PROGRESSO
 // =============================================
 async function getUserProgress(): Promise<UserProgressData | null> {
   try {
@@ -169,11 +169,10 @@ async function getUserProgress(): Promise<UserProgressData | null> {
 }
 
 // =============================================
-//  Definição dos intervalos por dificuldade
+// DEFINIÇÃO DOS INTERVALOS POR DIFICULDADE
 // =============================================
 const intervalsByDifficulty = {
   beginner: [
-    { name: 'Unísono', semitones: 0, displayName: 'Unísono (0 semitons)' },
     { name: 'Segunda menor', semitones: 1, displayName: 'Segunda menor (1 semitom)' },
     { name: 'Segunda maior', semitones: 2, displayName: 'Segunda maior (2 semitons)' },
     { name: 'Terça menor', semitones: 3, displayName: 'Terça menor (3 semitons)' },
@@ -182,7 +181,6 @@ const intervalsByDifficulty = {
     { name: 'Oitava', semitones: 12, displayName: 'Oitava (12 semitons)' }
   ],
   intermediate: [
-    { name: 'Unísono', semitones: 0, displayName: 'Unísono' },
     { name: 'Segunda menor', semitones: 1, displayName: 'Segunda menor' },
     { name: 'Segunda maior', semitones: 2, displayName: 'Segunda maior' },
     { name: 'Terça menor', semitones: 3, displayName: 'Terça menor' },
@@ -197,7 +195,6 @@ const intervalsByDifficulty = {
     { name: 'Oitava', semitones: 12, displayName: 'Oitava' }
   ],
   advanced: [
-    { name: 'Unísono', semitones: 0, displayName: 'Unísono' },
     { name: 'Segunda menor', semitones: 1, displayName: 'Segunda menor' },
     { name: 'Segunda maior', semitones: 2, displayName: 'Segunda maior' },
     { name: 'Terça menor', semitones: 3, displayName: 'Terça menor' },
@@ -215,7 +212,7 @@ const intervalsByDifficulty = {
   ]
 };
 
-interface IntervalExerciseProps {
+interface MelodicIntervalExerciseProps {
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   onComplete?: (result: {
     correct: boolean;
@@ -225,13 +222,11 @@ interface IntervalExerciseProps {
   }) => void;
 }
 
-const IntervalExercise: React.FC<IntervalExerciseProps> = ({
+const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
   difficulty,
   onComplete
 }) => {
-  // -------------------------------------------------------
-  //  Estados do exercício
-  // -------------------------------------------------------
+  // Estados do exercício
   const [currentInterval, setCurrentInterval] = useState<{
     name: string;
     semitones: number;
@@ -248,11 +243,11 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isPianoReady, setIsPianoReady] = useState<boolean>(false);
 
-  // 🆕 Estados para backend
+  // Estados para backend
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [backendResult, setBackendResult] = useState<ExerciseSubmissionResult | null>(null);
   
-  // 🆕 Estado para progresso do usuário
+  // Estado para progresso do usuário
   const [userProgress, setUserProgress] = useState<UserProgressData | null>(null);
 
   const availableIntervals = useMemo(
@@ -260,23 +255,20 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
     [difficulty]
   );
 
-  // -------------------------------------------------------
-  //  Buscar progresso inicial
-  // -------------------------------------------------------
+  // Buscar progresso inicial
   useEffect(() => {
     const fetchProgress = async () => {
       const progress = await getUserProgress();
       if (progress) {
         setUserProgress(progress);
+        console.log('📊 Progresso carregado:', progress);
       }
     };
     
     fetchProgress();
   }, []);
 
-  // -------------------------------------------------------
-  //  Verificar se piano está pronto
-  // -------------------------------------------------------
+  // Verificar se piano está pronto
   useEffect(() => {
     let attempts = 0;
     const maxAttempts = 100;
@@ -300,9 +292,7 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
     checkPianoReady();
   }, []);
 
-  // -------------------------------------------------------
-  //  Funções utilitárias (iguais às suas)
-  // -------------------------------------------------------
+  // Funções utilitárias
   const midiToFrequency = useCallback((midi: number): number => {
     return 440 * Math.pow(2, (midi - 69) / 12);
   }, []);
@@ -328,7 +318,7 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
       const baseFreq = midiToFrequency(baseNote);
       const topFreq = midiToFrequency(baseNote + currentInterval.semitones);
 
-      console.log(`🎵 Tocando intervalo: ${baseName} → ${topName}`);
+      console.log(`🎵 Tocando intervalo: ${baseName} → ${topName} (${currentInterval.name})`);
 
       const playNote = window.playPianoNote;
       const stopNote = window.stopPianoNote;
@@ -362,14 +352,26 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
     }
   }, [baseNote, currentInterval, getNoteNameFromMidi, midiToFrequency, isPianoReady]);
 
+  // GERAÇÃO ALEATÓRIA CORRIGIDA
   const generateNewExercise = useCallback(() => {
-    if (availableIntervals.length === 0) return;
+    if (availableIntervals.length === 0) {
+      console.warn('⚠️ Nenhum intervalo disponível para a dificuldade:', difficulty);
+      return;
+    }
     
+    console.log(`🎲 Gerando novo exercício. Intervalos disponíveis: ${availableIntervals.length}`);
+    
+    // Garantir aleatoriedade real
     const randomIndex = Math.floor(Math.random() * availableIntervals.length);
     const randomInterval = availableIntervals[randomIndex];
-    const maxBaseNote = 84 - randomInterval.semitones;
-    const minBaseNote = 48;
+    
+    // Calcular nota base válida (evitar notas muito altas/baixas)
+    const maxBaseNote = Math.min(84, 72 - randomInterval.semitones);
+    const minBaseNote = Math.max(48, 36 + randomInterval.semitones);
     const randomBaseNote = minBaseNote + Math.floor(Math.random() * (maxBaseNote - minBaseNote + 1));
+
+    console.log(`🎯 Intervalo escolhido: ${randomInterval.name} (${randomInterval.semitones} semitons)`);
+    console.log(`🎹 Nota base: ${randomBaseNote} (${getNoteNameFromMidi(randomBaseNote)})`);
 
     setCurrentInterval(randomInterval);
     setBaseNote(randomBaseNote);
@@ -378,17 +380,28 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
     setStartTime(Date.now());
     setBackendResult(null);
 
-    console.log(`🎯 Novo exercício: ${randomInterval.displayName} a partir de ${getNoteNameFromMidi(randomBaseNote)}`);
-  }, [availableIntervals, getNoteNameFromMidi]);
+  }, [availableIntervals, difficulty, getNoteNameFromMidi]);
 
-  // -------------------------------------------------------
-  // 🆕 VERIFICAR RESPOSTA COM BACKEND
-  // -------------------------------------------------------
+  // INICIALIZAÇÃO CORRIGIDA
+  useEffect(() => {
+    const initTimer = setTimeout(() => {
+      if (availableIntervals.length > 0) {
+        console.log('🚀 Inicializando exercício...');
+        generateNewExercise();
+      }
+    }, 500);
+    
+    return () => clearTimeout(initTimer);
+  }, [availableIntervals, generateNewExercise]);
+
+  // VERIFICAR RESPOSTA COM BACKEND MELHORADO
   const checkAnswer = useCallback(async () => {
     if (!currentInterval || !userAnswer) return;
     
     const correct = userAnswer === currentInterval.name;
     const timeSpent = Date.now() - startTime;
+
+    console.log(`🔍 Verificando resposta: ${userAnswer} vs ${currentInterval.name} = ${correct ? 'CORRETO' : 'INCORRETO'}`);
 
     // Atualizar estado local
     setIsCorrect(correct);
@@ -408,7 +421,7 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
       });
     }
 
-    // 🆕 ENVIAR PARA BACKEND
+    // ENVIAR PARA BACKEND
     setIsSubmitting(true);
     
     const result = await submitFrontendExercise(
@@ -437,6 +450,8 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
       if (updatedProgress) {
         setUserProgress(updatedProgress);
       }
+    } else {
+      console.warn('⚠️ Falha ao salvar no backend, mas continuando localmente');
     }
 
   }, [currentInterval, userAnswer, startTime, difficulty, baseNote, onComplete]);
@@ -445,23 +460,16 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
     generateNewExercise();
   }, [generateNewExercise]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      generateNewExercise();
-    }, 1000);
-    
-    return () => clearTimeout(timer);
-  }, [generateNewExercise]);
-
-  // -------------------------------------------------------
-  //  Loading
-  // -------------------------------------------------------
+  // Loading
   if (!currentInterval) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="text-2xl mb-2">🎯</div>
           <div className="text-gray-600">Preparando exercício...</div>
+          <div className="text-sm text-gray-500 mt-2">
+            Dificuldade: {difficulty === 'beginner' ? 'Iniciante' : difficulty === 'intermediate' ? 'Intermediário' : 'Avançado'}
+          </div>
         </div>
       </div>
     );
@@ -469,13 +477,11 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
 
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6 bg-white rounded-lg shadow-lg space-y-6">
-      {/* ====================================== */}
-      {/* 🆕 CABEÇALHO COM PROGRESSO DO USUÁRIO  */}
-      {/* ====================================== */}
+      {/* CABEÇALHO COM PROGRESSO DO USUÁRIO */}
       <div className="text-center">
         <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
           <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
-            Identificação de Intervalos
+            Intervalos Melódicos
           </h2>
           <div className="flex gap-3 text-sm">
             {/* Pontuação local */}
@@ -498,10 +504,10 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
             {difficulty === 'beginner' ? 'Iniciante' : difficulty === 'intermediate' ? 'Intermediário' : 'Avançado'}
           </p>
           <p className="text-blue-700 text-sm mt-1">
-            Ouça o intervalo e identifique qual tipo é. Use o piano para experimentar.
+            Ouça as duas notas em sequência (melodicamente) e identifique o intervalo. Use o piano para experimentar.
           </p>
           
-          {/* 🆕 Progresso nos intervalos */}
+          {/* Progresso nos intervalos */}
           {userProgress?.byType?.intervals && (
             <div className="mt-2 text-blue-700 text-sm">
               Intervalos completados: {userProgress.byType.intervals.completed} | 
@@ -511,9 +517,7 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
         </div>
       </div>
 
-      {/* ====================================== */}
-      {/*     EXERCÍCIO (IGUAL AO SEU)          */}
-      {/* ====================================== */}
+      {/* EXERCÍCIO ATUAL */}
       <div className="space-y-6">
         <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
           <h3 className="text-lg font-semibold mb-4">🎵 Exercício Atual</h3>
@@ -536,18 +540,16 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
                 : 'bg-indigo-600 text-white hover:bg-indigo-700'
             }`}
           >
-            {isPlaying ? '🎵 Tocando...' : !isPianoReady ? '⏳ Aguardando piano...' : '🎵 Tocar Intervalo'}
+            {isPlaying ? '🎵 Tocando...' : !isPianoReady ? '⏳ Aguardando piano...' : '🎵 Tocar Intervalo Melódico'}
           </button>
           <div className="mt-3 text-center text-sm text-gray-600">
-            Clique para ouvir o intervalo (primeira nota → segunda nota)
+            Clique para ouvir o intervalo (primeira nota → segunda nota em sequência)
           </div>
         </div>
 
-        {/* ====================================== */}
-        {/*   OPÇÕES DE RESPOSTA (IGUAL AO SEU)   */}
-        {/* ====================================== */}
+        {/* OPÇÕES DE RESPOSTA */}
         <div className="space-y-4">
-          <h4 className="font-semibold text-lg">Qual intervalo você ouviu?</h4>
+          <h4 className="font-semibold text-lg">Qual intervalo melódico você ouviu?</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {availableIntervals.map((interval) => (
               <button
@@ -568,9 +570,7 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
           </div>
         </div>
 
-        {/* ====================================== */}
-        {/* 🆕 BOTÃO CONFIRMAR COM LOADING         */}
-        {/* ====================================== */}
+        {/* BOTÃO CONFIRMAR */}
         {userAnswer && !showResult && (
           <button
             onClick={checkAnswer}
@@ -585,9 +585,7 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
           </button>
         )}
 
-        {/* ====================================== */}
-        {/* 🆕 RESULTADO COM GAMIFICAÇÃO           */}
-        {/* ====================================== */}
+        {/* RESULTADO COM GAMIFICAÇÃO */}
         {showResult && (
           <div className="space-y-3">
             {/* Resultado básico */}
@@ -604,7 +602,7 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
               </div>
             </div>
 
-            {/* 🆕 FEEDBACK DE GAMIFICAÇÃO */}
+            {/* FEEDBACK DE GAMIFICAÇÃO */}
             {backendResult?.success && (
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="text-blue-800 font-medium">
@@ -643,9 +641,7 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
           </div>
         )}
 
-        {/* ====================================== */}
-        {/*      Piano (IGUAL AO SEU)            */}
-        {/* ====================================== */}
+        {/* Piano */}
         <div className="border-t border-gray-200 pt-6">
           <BeautifulPianoKeyboard />
         </div>
@@ -654,4 +650,4 @@ const IntervalExercise: React.FC<IntervalExerciseProps> = ({
   );
 };
 
-export default IntervalExercise;
+export default MelodicIntervalExercise;

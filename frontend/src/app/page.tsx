@@ -63,7 +63,7 @@ export default function Home() {
               </div>
               <h3 className="text-xl font-semibold mb-2 text-indigo-700">Identificação de Intervalos</h3>
               <p className="text-gray-600 mb-4 text-sm">Aprenda a identificar a distância entre duas notas.</p>
-              <Link href="/exercises/intervals" className="inline-flex items-center bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition-colors text-sm font-medium">
+              <Link href="/exercises/melodic-intervals" className="inline-flex items-center bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition-colors text-sm font-medium">
                 Iniciar Prática
               </Link>
             </div>
