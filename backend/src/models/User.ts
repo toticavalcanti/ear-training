@@ -1,12 +1,17 @@
-//backend/src/models/User.ts
-import mongoose, { Document, Schema } from 'mongoose';
-import bcryptjs from 'bcryptjs';
+// src/models/User.ts
+import mongoose, { Document, Schema, Types } from 'mongoose';
+import bcrypt from 'bcryptjs';
 
 export interface IUser extends Document {
+  _id: Types.ObjectId;
   name: string;
   email: string;
-  passwordHash?: string; // Opcional para Google users
+  password?: string; // Unificado: será usado tanto para passwordHash quanto password
   subscription: 'free' | 'premium';
+  subscriptionType?: 'free' | 'premium' | 'annual'; // Compatibilidade com Express
+  subscriptionStatus?: 'active' | 'inactive' | 'canceled'; // Compatibilidade com Express
+  level: number;
+  xp: number;
   lastActive: Date;
   
   // Campos Google OAuth:
@@ -34,7 +39,7 @@ const UserSchema = new Schema<IUser>({
     lowercase: true,
     match: [/^\S+@\S+\.\S+$/, 'Email inválido'],
   },
-  passwordHash: {
+  password: {
     type: String,
     // Senha obrigatória apenas para usuários que não são do Google
     required: function(this: IUser) {
@@ -46,49 +51,73 @@ const UserSchema = new Schema<IUser>({
     enum: ['free', 'premium'],
     default: 'free',
   },
+  // Campos de compatibilidade com Express
+  subscriptionType: {
+    type: String,
+    enum: ['free', 'premium', 'annual'] as const,
+    default: 'free',
+  },
+  subscriptionStatus: {
+    type: String,
+    enum: ['active', 'inactive', 'canceled'] as const,
+    default: 'inactive',
+  },
+  level: {
+    type: Number,
+    default: 1,
+  },
+  xp: {
+    type: Number,
+    default: 0,
+  },
   lastActive: {
     type: Date,
     default: Date.now,
   },
   
-  // ✅ CAMPO GOOGLE ID CORRIGIDO (sem duplicação)
   googleId: {
     type: String,
-    unique: true,        // Cria índice automaticamente
-    sparse: true,        // Permite null/undefined únicos
+    unique: true,
+    sparse: true,
   },
   avatar: {
     type: String,
   },
 }, {
-  timestamps: true, // Adiciona createdAt e updatedAt automaticamente
-  suppressReservedKeysWarning: true, // Remove warning do mongoose
+  timestamps: true,
+  suppressReservedKeysWarning: true,
 });
 
-// ✅ ÍNDICES NECESSÁRIOS (sem duplicar o googleId que já é unique)
-UserSchema.index({ lastActive: 1 }); // Para queries de usuários ativos
-UserSchema.index({ subscription: 1 }); // Para filtrar por tipo de assinatura
+// Índices necessários
+UserSchema.index({ lastActive: 1 });
+UserSchema.index({ subscription: 1 });
 
-// ✅ MÉTODO PARA COMPARAR SENHA
+// Método para comparar senha
 UserSchema.methods.comparePassword = async function(password: string): Promise<boolean> {
-  if (!this.passwordHash) {
+  if (!this.password) {
     return false; // Usuários do Google não têm senha
   }
-  return await bcryptjs.compare(password, this.passwordHash);
+  return await bcrypt.compare(password, this.password);
 };
 
-// ✅ VALIDAÇÃO CUSTOMIZADA: deve ter senha OU googleId
+// Validação customizada: deve ter senha OU googleId
 UserSchema.pre('validate', function(next) {
-  if (!this.passwordHash && !this.googleId) {
-    this.invalidate('passwordHash', 'Usuário deve ter senha ou Google ID');
+  if (!this.password && !this.googleId) {
+    this.invalidate('password', 'Usuário deve ter senha ou Google ID');
   }
   next();
 });
 
-// ✅ MIDDLEWARE PARA ATUALIZAR lastActive AUTOMATICAMENTE
+// Middleware para sincronizar campos de compatibilidade
 UserSchema.pre('save', function(next) {
+  // Sincronizar subscription com subscriptionType
+  if (this.subscription && !this.subscriptionType) {
+    this.subscriptionType = this.subscription as 'free' | 'premium';
+  }
+  
+  // Atualizar lastActive automaticamente
   this.lastActive = new Date();
   next();
 });
 
-export default mongoose.model<IUser>('User', UserSchema);
+export default mongoose.models.User || mongoose.model<IUser>('User', UserSchema);

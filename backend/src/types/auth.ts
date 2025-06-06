@@ -1,27 +1,30 @@
-// frontend/src/types/types.ts
+// src/types/auth.ts
 
-// Tipos principais do usuário
-export interface User {
+// Tipos para o plano de assinatura do usuário
+export type SubscriptionType = 'free' | 'premium' | 'annual';
+
+// Tipos para o status da assinatura do usuário
+export type SubscriptionStatus = 'active' | 'inactive' | 'canceled';
+
+// Dados básicos do usuário autenticado (payload do JWT, por exemplo)
+export interface AuthUser {
   id: string;
-  name?: string; // Name is optional
   email: string;
-  subscription?: 'free' | 'premium'; // Marcar como opcional se nem todos os usuários tiverem
-  subscriptionType?: 'free' | 'premium' | 'annual';
-  subscriptionStatus?: 'active' | 'inactive' | 'canceled';
-  avatar?: string; // Mudado de avatarUrl para avatar (consistência com backend)
-  avatarUrl?: string; // Mantido para compatibilidade
-  googleId?: string;
-  level?: number;
-  xp?: number;
+  name: string;
+  level: number;
+  xp: number;
+  subscription: 'free' | 'premium';
+  subscriptionType: SubscriptionType;
+  subscriptionStatus: SubscriptionStatus;
+  avatar?: string;
   isGoogleUser?: boolean;
-  lastActive?: string; // Como string ISO para JSON
-  createdAt?: string; // Como string ISO para JSON
-  updatedAt?: string; // Como string ISO para JSON
+  lastActive?: string;
+  createdAt?: string;   // Opcional, caso queira retornar data de criação
+  updatedAt?: string;   // Opcional, caso queira retornar data de atualização
 }
 
-// Tipos para assinatura
-export type SubscriptionType = 'free' | 'premium' | 'annual';
-export type SubscriptionStatus = 'active' | 'inactive' | 'canceled';
+// Alias para compatibilidade
+export type User = AuthUser;
 
 // Corpo esperado no login (request body)
 export interface LoginRequest {
@@ -45,13 +48,18 @@ export interface GoogleAuthRequest {
 }
 
 // Resposta de sucesso (ex.: login ou registro bem-sucedido)
+// - message: texto de confirmação
+// - token: token JWT retornado
+// - user: objeto com dados do usuário (tipo AuthUser)
 export interface AuthResponse {
   message: string;
   token: string;
-  user: User;
+  user: AuthUser;
 }
 
 // Resposta de erro genérica da API
+// - error: mensagem de erro
+// - code?: código de erro opcional (ex.: 'MISSING_FIELDS', 'INVALID_CREDENTIALS', etc.)
 export interface ErrorResponse {
   error: string;
   message?: string;
@@ -61,19 +69,19 @@ export interface ErrorResponse {
 
 // Tipos para o contexto de autenticação
 export interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
-  refreshUser: () => Promise<User | null>;
+  refreshUser: () => Promise<AuthUser | null>;
 }
 
 // Tipos para resposta da API de usuários
 export interface UsersResponse {
-  users: User[];
+  users: AuthUser[];
   total: number;
 }
 

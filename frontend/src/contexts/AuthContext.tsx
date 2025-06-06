@@ -3,30 +3,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { User } from '@/types/types'; // Usando o tipo do seu repositório
-
-// Interface para a resposta do backend (login, register)
-interface AuthResponse {
-  token: string;
-  user: User;
-}
-
-// Tipo para a resposta de erro da API de login/registro
-interface ApiErrorResponse {
-  message: string;
-  isGoogleUser?: boolean; // Específico para o erro de login
-}
-
-interface AuthContextType {
-  user: User | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  token: string | null; // Para armazenar o JWT
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
-  refreshUser: () => Promise<User | null>;
-}
+import { User, AuthResponse, ErrorResponse, AuthContextType } from '@/types/types';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -42,14 +19,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+  // Backend na porta 5000
+  const API_URL = 'http://localhost:5000/api';
 
   const processAuthSuccess = useCallback((jwtToken: string, userData: User) => {
     console.log('[AUTH_CONTEXT DEBUG] processAuthSuccess: Processando. JWT:', !!jwtToken, 'Usuário:', userData?.email);
     localStorage.setItem('jwtToken', jwtToken);
     setToken(jwtToken);
     setUser(userData);
-    setIsLoading(false); // Para o loading APÓS a autenticação ser resolvida
+    setIsLoading(false);
   }, []);
 
   const clearAuthData = useCallback(() => {
@@ -74,20 +52,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setToken(storedToken);
     }
 
-    console.log('[AUTH_CONTEXT DEBUG] refreshUser: Fetch /auth/me com token:', storedToken ? 'Presente' : 'Ausente');
+    const fullUrl = `${API_URL}/users/me`;
+    console.log('[AUTH_CONTEXT DEBUG] API_URL:', API_URL);
+    console.log('[AUTH_CONTEXT DEBUG] URL completa:', fullUrl);
+    
     try {
-      const response = await fetch(`${API_URL}/auth/me`, {
+      const response = await fetch(fullUrl, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${storedToken}` },
       });
-      console.log(`[AUTH_CONTEXT DEBUG] refreshUser: Resposta /auth/me - Status: ${response.status}`);
+      
+      console.log(`[AUTH_CONTEXT DEBUG] refreshUser: Resposta - Status: ${response.status}`);
+      
       if (response.ok) {
         const userData = await response.json() as User;
         setUser(userData); 
         console.log('[AUTH_CONTEXT DEBUG] refreshUser: Sucesso! Usuário:', userData?.email);
         return userData;
       } else {
-        console.warn(`[AUTH_CONTEXT DEBUG] refreshUser: Falha. Status: ${response.status}. Limpando auth.`);
+        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
+        console.warn(`[AUTH_CONTEXT DEBUG] refreshUser: Falha. Status: ${response.status}, Erro:`, errorData);
         clearAuthData();
         return null;
       }
@@ -95,11 +79,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       let errMsg = 'Erro desconhecido';
       if (error instanceof Error) errMsg = error.message;
       else if (typeof error === 'string') errMsg = error;
-      console.error('[AUTH_CONTEXT DEBUG] refreshUser: Exceção no fetch /auth/me:', errMsg);
+      console.error(`[AUTH_CONTEXT DEBUG] refreshUser: Exceção no fetch ${fullUrl}:`, errMsg);
       clearAuthData();
       return null;
     }
-  }, [API_URL, clearAuthData, token]);
+  }, [clearAuthData, token, API_URL]);
 
   // Efeito para verificação inicial na montagem
   useEffect(() => {
@@ -119,13 +103,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [isLoading, user]); 
 
-  // ✅ EFEITO PARA CAPTURAR TOKEN DE QUALQUER URL
+  // EFEITO PARA CAPTURAR TOKEN DE QUALQUER URL
   useEffect(() => {
     if (typeof window !== 'undefined') { 
       const jwtFromUrl = searchParams.get('token');
       const oauthError = searchParams.get('error');
 
-      // ✅ CAPTURA TOKEN DE QUALQUER PÁGINA (especialmente /auth/success)
+      // CAPTURA TOKEN DE QUALQUER PÁGINA (especialmente /auth/success)
       if (jwtFromUrl) {
         console.log('[AUTH_CONTEXT DEBUG] Token detectado na URL:', pathname);
         
@@ -135,14 +119,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
         currentUrl.searchParams.delete('error');
         window.history.replaceState({}, '', currentUrl.toString());
         
-        setIsLoading(true); // Indica que estamos processando este token
+        setIsLoading(true);
         localStorage.setItem('jwtToken', jwtFromUrl);
-        setToken(jwtFromUrl); // Atualiza o estado do token IMEDIATAMENTE
+        setToken(jwtFromUrl);
 
         refreshUser().then(refreshedUser => {
           if (refreshedUser) {
             console.log('[AUTH_CONTEXT DEBUG] Google OAuth bem-sucedido! Redirecionando para home...');
-            // ✅ REDIRECIONAR PARA HOME
             router.push('/');
           } else {
             console.error('[AUTH_CONTEXT DEBUG] Falha ao obter dados do usuário com token da URL.');
@@ -158,7 +141,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         });
 
       } else if (oauthError) { 
-        // Trata erros redirecionados pelo backend
         console.error(`[AUTH_CONTEXT DEBUG] Erro de OAuth na URL (${pathname}): ${oauthError}`);
         
         // Limpa a URL
@@ -175,16 +157,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const login = async (email: string, password: string): Promise<void> => {
     setIsLoading(true);
     try {
+      console.log('[AUTH_CONTEXT DEBUG] login: Tentando login para:', email);
+      
       const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
+      
       const data = await response.json();
-      if (!response.ok) throw data as ApiErrorResponse; 
+      console.log('[AUTH_CONTEXT DEBUG] login: Resposta recebida, status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error((data as ErrorResponse).error || (data as ErrorResponse).message || 'Erro no login');
+      }
+      
       processAuthSuccess((data as AuthResponse).token, (data as AuthResponse).user);
+      console.log('[AUTH_CONTEXT DEBUG] login: Sucesso!');
+      
     } catch (error) { 
-      const err = error as ApiErrorResponse | Error;
+      const err = error as Error;
       console.error('[AUTH_CONTEXT DEBUG] login: Falha.', err.message);
       clearAuthData(); 
       throw err; 
@@ -196,14 +188,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const register = async (name: string, email: string, password: string): Promise<void> => {
     setIsLoading(true);
     try {
+      console.log('[AUTH_CONTEXT DEBUG] register: Tentando registro para:', email);
+      
       const response = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password }),
       });
+      
       const data = await response.json();
-      if (!response.ok) throw new Error((data as ApiErrorResponse).message || 'Erro no registro');
+      console.log('[AUTH_CONTEXT DEBUG] register: Resposta recebida, status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error((data as ErrorResponse).error || (data as ErrorResponse).message || 'Erro no registro');
+      }
+      
       processAuthSuccess((data as AuthResponse).token, (data as AuthResponse).user);
+      console.log('[AUTH_CONTEXT DEBUG] register: Sucesso!');
+      
     } catch (error) { 
       console.error('[AUTH_CONTEXT DEBUG] register: Falha.', error);
       clearAuthData(); 
@@ -214,6 +216,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const logout = async (): Promise<void> => {
+    console.log('[AUTH_CONTEXT DEBUG] logout: Fazendo logout');
     setIsLoading(true); 
     clearAuthData();
     setIsLoading(false);
