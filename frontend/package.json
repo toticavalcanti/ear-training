@@ -9,7 +9,9 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "axios": "^1.9.0",
+    "bcryptjs": "^3.0.2",
     "frontend": "file:",
     "next": "15.3.1",
     "qwerty-hancock": "^0.11.0",

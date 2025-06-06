@@ -1,6 +1,4 @@
-// ===================================
-// src/app/auth/login/page.tsx
-// ===================================
+//src/app/auth/login/page.tsx
 'use client';
 
 import { useState } from 'react';
@@ -74,9 +72,18 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                Senha
-              </label>
+              <div className="flex justify-between items-center mb-2">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  Senha
+                </label>
+                {/* 🆕 LINK ESQUECI MINHA SENHA */}
+                <Link 
+                  href="/auth/forgot-password" 
+                  className="text-sm text-indigo-600 hover:text-indigo-500 font-medium"
+                >
+                  Esqueci minha senha
+                </Link>
+              </div>
               <input
                 id="password"
                 type="password"

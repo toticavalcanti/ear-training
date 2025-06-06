@@ -103,11 +103,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [isLoading, user]); 
 
-  // EFEITO PARA CAPTURAR TOKEN DE QUALQUER URL
+  // EFEITO PARA CAPTURAR TOKEN DE QUALQUER URL (EXCETO RESET DE SENHA)
   useEffect(() => {
     if (typeof window !== 'undefined') { 
       const jwtFromUrl = searchParams.get('token');
       const oauthError = searchParams.get('error');
+
+      // ✅ IGNORAR TOKEN SE ESTIVER NA PÁGINA DE RESET DE SENHA
+      if (pathname === '/auth/reset-password') {
+        console.log('[AUTH_CONTEXT DEBUG] Ignorando token na página de reset de senha');
+        return;
+      }
 
       // CAPTURA TOKEN DE QUALQUER PÁGINA (especialmente /auth/success)
       if (jwtFromUrl) {
