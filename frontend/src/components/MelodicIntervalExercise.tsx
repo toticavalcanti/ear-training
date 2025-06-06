@@ -17,198 +17,219 @@ declare global {
 }
 
 // =============================================
-// INTERFACES TYPESCRIPT
+// INTERFACES E TIPOS ADAPTADOS ÀS SUAS APIS
 // =============================================
 
-interface IntervalExerciseData {
-  baseNote: number;
-  targetNote: number;
+interface IntervalDefinition {
+  name: string;
   semitones: number;
-  intervalName: string;
+  displayName: string;
+  difficulty: number;
 }
 
-interface ExerciseSubmissionResult {
-  success: boolean;
-  isCorrect: boolean;
-  correctAnswer: string;
-  userAnswer: string;
-  score: number;
-  accuracy: number;
-  experienceGained: number;
-  isPerfect: boolean;
-  levelUp: boolean;
+// Tipos baseados nas suas APIs existentes
+interface UserProgress {
+  totalXp: number;
   currentLevel: number;
-  totalExperience: number;
-  newAchievements: Achievement[];
-  message: string;
+  xpForNextLevel: number;
+  totalPoints: number;
+  totalExercises: number;
+  totalCorrectAnswers: number;
+  overallAccuracy: number;
+  currentGlobalStreak: number;
+  bestGlobalStreak: number;
+  lastActiveDate: Date;
+  exerciseStats: ExerciseStats[];
+  recentSessions: ExerciseSession[];
+  badges: Badge[];
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-interface Achievement {
+interface ExerciseStats {
+  exerciseType: 'melodic-intervals' | 'harmonic-intervals' | 'chord-progressions' | 'rhythmic-patterns';
+  totalSessions: number;
+  totalQuestions: number;
+  totalCorrect: number;
+  bestAccuracy: number;
+  averageAccuracy: number;
+  totalTimeSpent: number;
+  totalPointsEarned: number;
+  totalXpEarned: number;
+  currentStreak: number;
+  bestStreak: number;
+  lastPlayed: Date;
+}
+
+interface ExerciseSession {
+  exerciseType: 'melodic-intervals' | 'harmonic-intervals' | 'chord-progressions' | 'rhythmic-patterns';
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  totalQuestions: number;
+  correctAnswers: number;
+  timeSpent: number;
+  averageResponseTime: number;
+  pointsEarned: number;
+  xpEarned: number;
+  completedAt: Date;
+}
+
+interface Badge {
   id: string;
   name: string;
   description: string;
   icon: string;
-  category: 'progress' | 'mastery' | 'speed' | 'streak' | 'special';
-  points: number;
-  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  unlockedAt: Date;
 }
 
-interface UserProgressData {
-  level: number;
-  experience: number;
-  totalExperiences: number;
-  perfectScores: number;
-  averageScore: number;
-  streakDays: number;
-  levelProgress: {
-    current: number;
-    needed: number;
-    percentage: number;
+interface SessionResult {
+  exerciseType: string;
+  difficulty: string;
+  totalQuestions: number;
+  correctAnswers: number;
+  timeSpent: number;
+  averageResponseTime: number;
+}
+
+interface UpdateProgressResponse {
+  sessionResults: {
+    pointsEarned: number;
+    xpEarned: number;
+    accuracy: number;
+    levelUp: boolean;
+    newLevel: number;
+    newBadges: Badge[];
   };
-  byType: {
-    intervals: {
-      completed: number;
-      averageScore: number;
-      bestTime: number;
-    };
-    rhythmic: {
-      completed: number;
-      averageScore: number;
-      bestTime: number;
-    };
-    melodic: {
-      completed: number;
-      averageScore: number;
-      bestTime: number;
-    };
-    progression: {
-      completed: number;
-      averageScore: number;
-      bestTime: number;
-    };
-  };
-  user: {
-    name: string;
-    subscription: 'free' | 'premium';
+  updatedProgress: {
+    totalXp: number;
+    currentLevel: number;
+    totalPoints: number;
+    currentGlobalStreak: number;
+    overallAccuracy: number;
   };
 }
 
 // =============================================
-// FUNÇÃO PARA ENVIAR EXERCÍCIO PARA BACKEND
+// PROGRESS SERVICE ADAPTADO ÀS SUAS APIS
 // =============================================
-async function submitFrontendExercise(
-  exerciseType: 'interval',
-  difficulty: 'beginner' | 'intermediate' | 'advanced',
-  userAnswer: string,
-  correctAnswer: string,
-  timeSpent: number,
-  exerciseData: IntervalExerciseData
-): Promise<ExerciseSubmissionResult | null> {
-  try {
-    const token = localStorage.getItem('authToken') || '';
-    
-    const payload = {
-      exerciseType,
-      difficulty,
-      userAnswer,
-      correctAnswer,
-      timeSpent,
-      exerciseData
-    };
-    
-    console.log('📤 Enviando exercício frontend:', payload);
 
-    const response = await fetch('/api/gamification/submit-frontend', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(payload)
-    });
+class ProgressService {
+  private baseUrl: string;
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Erro do backend:', errorText);
-      throw new Error(`Erro ${response.status}: ${errorText}`);
-    }
-
-    const result = await response.json();
-    console.log('📥 Resposta do backend:', result);
-    
-    return result;
-
-  } catch (error) {
-    console.error('❌ Erro ao enviar exercício:', error);
-    return null;
+  constructor() {
+    this.baseUrl = 'http://localhost:5000';
   }
-}
 
-// =============================================
-// FUNÇÃO PARA BUSCAR PROGRESSO
-// =============================================
-async function getUserProgress(): Promise<UserProgressData | null> {
-  try {
-    const token = localStorage.getItem('authToken') || '';
+  private getAuthHeaders(): HeadersInit {
+    const token = typeof window !== 'undefined' 
+      ? localStorage.getItem('jwtToken') || ''
+      : '';
     
-    const response = await fetch('/api/gamification/progress', {
-      headers: {
-        'Authorization': `Bearer ${token}`
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+  }
+
+  async getUserProgress(): Promise<UserProgress> {
+    try {
+      console.log('📊 Buscando progresso do usuário...');
+      
+      const response = await fetch(`${this.baseUrl}/api/progress/user`, {
+        method: 'GET',
+        headers: this.getAuthHeaders()
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erro ${response.status}: ${errorText}`);
       }
-    });
 
-    if (!response.ok) {
-      throw new Error(`Erro ${response.status}`);
+      const progress = await response.json();
+      console.log('✅ Progresso carregado:', progress);
+      return progress;
+
+    } catch (error) {
+      console.error('❌ Erro no progressService.getUserProgress:', error);
+      throw error;
     }
+  }
 
-    return await response.json();
-  } catch (error) {
-    console.error('❌ Erro ao buscar progresso:', error);
-    return null;
+  async updateProgress(sessionResult: SessionResult): Promise<UpdateProgressResponse> {
+    try {
+      console.log('💾 Atualizando progresso com resultado:', sessionResult);
+      
+      const response = await fetch(`${this.baseUrl}/api/progress/update`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(sessionResult)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erro ${response.status}: ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ Progresso atualizado:', result);
+      return result;
+
+    } catch (error) {
+      console.error('❌ Erro no progressService.updateProgress:', error);
+      throw error;
+    }
   }
 }
 
+const progressService = new ProgressService();
+
+// ✅ FUNÇÃO DE DIFICULDADE AGORA USADA
+const getIntervalDifficulty = (semitones: number): number => {
+  if (semitones <= 12) return 1; // Dentro de uma oitava = fácil
+  if (semitones <= 24) return 1.5; // Segunda oitava = médio
+  return 2; // Mais que duas oitavas = difícil
+};
+
 // =============================================
-// DEFINIÇÃO DOS INTERVALOS POR DIFICULDADE
+// ✅ DEFINIÇÃO DOS INTERVALOS COM DIFICULDADE CALCULADA
 // =============================================
-const intervalsByDifficulty = {
+const intervalsByDifficulty: Record<string, IntervalDefinition[]> = {
   beginner: [
-    { name: 'Segunda menor', semitones: 1, displayName: 'Segunda menor (1 semitom)' },
-    { name: 'Segunda maior', semitones: 2, displayName: 'Segunda maior (2 semitons)' },
-    { name: 'Terça menor', semitones: 3, displayName: 'Terça menor (3 semitons)' },
-    { name: 'Terça maior', semitones: 4, displayName: 'Terça maior (4 semitons)' },
-    { name: 'Quinta justa', semitones: 7, displayName: 'Quinta justa (7 semitons)' },
-    { name: 'Oitava', semitones: 12, displayName: 'Oitava (12 semitons)' }
+    { name: 'Segunda menor', semitones: 1, displayName: 'Segunda menor (1 semitom)', difficulty: getIntervalDifficulty(1) },
+    { name: 'Segunda maior', semitones: 2, displayName: 'Segunda maior (2 semitons)', difficulty: getIntervalDifficulty(2) },
+    { name: 'Terça menor', semitones: 3, displayName: 'Terça menor (3 semitons)', difficulty: getIntervalDifficulty(3) },
+    { name: 'Terça maior', semitones: 4, displayName: 'Terça maior (4 semitons)', difficulty: getIntervalDifficulty(4) },
+    { name: 'Quinta justa', semitones: 7, displayName: 'Quinta justa (7 semitons)', difficulty: getIntervalDifficulty(7) },
+    { name: 'Oitava', semitones: 12, displayName: 'Oitava (12 semitons)', difficulty: getIntervalDifficulty(12) }
   ],
   intermediate: [
-    { name: 'Segunda menor', semitones: 1, displayName: 'Segunda menor' },
-    { name: 'Segunda maior', semitones: 2, displayName: 'Segunda maior' },
-    { name: 'Terça menor', semitones: 3, displayName: 'Terça menor' },
-    { name: 'Terça maior', semitones: 4, displayName: 'Terça maior' },
-    { name: 'Quarta justa', semitones: 5, displayName: 'Quarta justa' },
-    { name: 'Trítono', semitones: 6, displayName: 'Trítono' },
-    { name: 'Quinta justa', semitones: 7, displayName: 'Quinta justa' },
-    { name: 'Sexta menor', semitones: 8, displayName: 'Sexta menor' },
-    { name: 'Sexta maior', semitones: 9, displayName: 'Sexta maior' },
-    { name: 'Sétima menor', semitones: 10, displayName: 'Sétima menor' },
-    { name: 'Sétima maior', semitones: 11, displayName: 'Sétima maior' },
-    { name: 'Oitava', semitones: 12, displayName: 'Oitava' }
+    { name: 'Segunda menor', semitones: 1, displayName: 'Segunda menor', difficulty: getIntervalDifficulty(1) },
+    { name: 'Segunda maior', semitones: 2, displayName: 'Segunda maior', difficulty: getIntervalDifficulty(2) },
+    { name: 'Terça menor', semitones: 3, displayName: 'Terça menor', difficulty: getIntervalDifficulty(3) },
+    { name: 'Terça maior', semitones: 4, displayName: 'Terça maior', difficulty: getIntervalDifficulty(4) },
+    { name: 'Quarta justa', semitones: 5, displayName: 'Quarta justa', difficulty: getIntervalDifficulty(5) },
+    { name: 'Trítono', semitones: 6, displayName: 'Trítono', difficulty: getIntervalDifficulty(6) },
+    { name: 'Quinta justa', semitones: 7, displayName: 'Quinta justa', difficulty: getIntervalDifficulty(7) },
+    { name: 'Sexta menor', semitones: 8, displayName: 'Sexta menor', difficulty: getIntervalDifficulty(8) },
+    { name: 'Sexta maior', semitones: 9, displayName: 'Sexta maior', difficulty: getIntervalDifficulty(9) },
+    { name: 'Sétima menor', semitones: 10, displayName: 'Sétima menor', difficulty: getIntervalDifficulty(10) },
+    { name: 'Sétima maior', semitones: 11, displayName: 'Sétima maior', difficulty: getIntervalDifficulty(11) },
+    { name: 'Oitava', semitones: 12, displayName: 'Oitava', difficulty: getIntervalDifficulty(12) }
   ],
   advanced: [
-    { name: 'Segunda menor', semitones: 1, displayName: 'Segunda menor' },
-    { name: 'Segunda maior', semitones: 2, displayName: 'Segunda maior' },
-    { name: 'Terça menor', semitones: 3, displayName: 'Terça menor' },
-    { name: 'Terça maior', semitones: 4, displayName: 'Terça maior' },
-    { name: 'Quarta justa', semitones: 5, displayName: 'Quarta justa' },
-    { name: 'Trítono', semitones: 6, displayName: 'Trítono' },
-    { name: 'Quinta justa', semitones: 7, displayName: 'Quinta justa' },
-    { name: 'Sexta menor', semitones: 8, displayName: 'Sexta menor' },
-    { name: 'Sexta maior', semitones: 9, displayName: 'Sexta maior' },
-    { name: 'Sétima menor', semitones: 10, displayName: 'Sétima menor' },
-    { name: 'Sétima maior', semitones: 11, displayName: 'Sétima maior' },
-    { name: 'Oitava', semitones: 12, displayName: 'Oitava' },
-    { name: 'Nona menor', semitones: 13, displayName: 'Nona menor' },
-    { name: 'Nona maior', semitones: 14, displayName: 'Nona maior' }
+    { name: 'Segunda menor', semitones: 1, displayName: 'Segunda menor', difficulty: getIntervalDifficulty(1) },
+    { name: 'Segunda maior', semitones: 2, displayName: 'Segunda maior', difficulty: getIntervalDifficulty(2) },
+    { name: 'Terça menor', semitones: 3, displayName: 'Terça menor', difficulty: getIntervalDifficulty(3) },
+    { name: 'Terça maior', semitones: 4, displayName: 'Terça maior', difficulty: getIntervalDifficulty(4) },
+    { name: 'Quarta justa', semitones: 5, displayName: 'Quarta justa', difficulty: getIntervalDifficulty(5) },
+    { name: 'Trítono', semitones: 6, displayName: 'Trítono', difficulty: getIntervalDifficulty(6) },
+    { name: 'Quinta justa', semitones: 7, displayName: 'Quinta justa', difficulty: getIntervalDifficulty(7) },
+    { name: 'Sexta menor', semitones: 8, displayName: 'Sexta menor', difficulty: getIntervalDifficulty(8) },
+    { name: 'Sexta maior', semitones: 9, displayName: 'Sexta maior', difficulty: getIntervalDifficulty(9) },
+    { name: 'Sétima menor', semitones: 10, displayName: 'Sétima menor', difficulty: getIntervalDifficulty(10) },
+    { name: 'Sétima maior', semitones: 11, displayName: 'Sétima maior', difficulty: getIntervalDifficulty(11) },
+    { name: 'Oitava', semitones: 12, displayName: 'Oitava', difficulty: getIntervalDifficulty(12) },
+    { name: 'Nona menor', semitones: 13, displayName: 'Nona menor ⭐', difficulty: getIntervalDifficulty(13) },
+    { name: 'Nona maior', semitones: 14, displayName: 'Nona maior ⭐', difficulty: getIntervalDifficulty(14) }
   ]
 };
 
@@ -227,12 +248,7 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
   onComplete
 }) => {
   // Estados do exercício
-  const [currentInterval, setCurrentInterval] = useState<{
-    name: string;
-    semitones: number;
-    displayName: string;
-  } | null>(null);
-
+  const [currentInterval, setCurrentInterval] = useState<IntervalDefinition | null>(null);
   const [baseNote, setBaseNote] = useState<number>(60); // C4
   const [userAnswer, setUserAnswer] = useState<string>('');
   const [showResult, setShowResult] = useState<boolean>(false);
@@ -245,23 +261,27 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
 
   // Estados para backend
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [backendResult, setBackendResult] = useState<ExerciseSubmissionResult | null>(null);
+  const [backendResult, setBackendResult] = useState<UpdateProgressResponse | null>(null);
+  const [backendError, setBackendError] = useState<string | null>(null);
   
   // Estado para progresso do usuário
-  const [userProgress, setUserProgress] = useState<UserProgressData | null>(null);
+  const [userProgress, setUserProgress] = useState<UserProgress | null>(null);
 
   const availableIntervals = useMemo(
     () => intervalsByDifficulty[difficulty] || [],
     [difficulty]
   );
 
-  // Buscar progresso inicial
+  // Buscar progresso inicial usando progressService
   useEffect(() => {
     const fetchProgress = async () => {
-      const progress = await getUserProgress();
-      if (progress) {
+      try {
+        const progress = await progressService.getUserProgress();
         setUserProgress(progress);
-        console.log('📊 Progresso carregado:', progress);
+        console.log('📊 Progresso carregado via progressService:', progress);
+      } catch (error) {
+        console.error('❌ Erro ao buscar progresso:', error);
+        setBackendError('Erro ao carregar progresso do usuário');
       }
     };
     
@@ -318,7 +338,7 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
       const baseFreq = midiToFrequency(baseNote);
       const topFreq = midiToFrequency(baseNote + currentInterval.semitones);
 
-      console.log(`🎵 Tocando intervalo: ${baseName} → ${topName} (${currentInterval.name})`);
+      console.log(`🎵 Tocando intervalo: ${baseName} → ${topName} (${currentInterval.name}, dificuldade ${currentInterval.difficulty}x)`);
 
       const playNote = window.playPianoNote;
       const stopNote = window.stopPianoNote;
@@ -352,7 +372,7 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
     }
   }, [baseNote, currentInterval, getNoteNameFromMidi, midiToFrequency, isPianoReady]);
 
-  // GERAÇÃO ALEATÓRIA CORRIGIDA
+  // Geração de novo exercício
   const generateNewExercise = useCallback(() => {
     if (availableIntervals.length === 0) {
       console.warn('⚠️ Nenhum intervalo disponível para a dificuldade:', difficulty);
@@ -361,16 +381,15 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
     
     console.log(`🎲 Gerando novo exercício. Intervalos disponíveis: ${availableIntervals.length}`);
     
-    // Garantir aleatoriedade real
     const randomIndex = Math.floor(Math.random() * availableIntervals.length);
     const randomInterval = availableIntervals[randomIndex];
     
-    // Calcular nota base válida (evitar notas muito altas/baixas)
+    // Calcular nota base válida
     const maxBaseNote = Math.min(84, 72 - randomInterval.semitones);
     const minBaseNote = Math.max(48, 36 + randomInterval.semitones);
     const randomBaseNote = minBaseNote + Math.floor(Math.random() * (maxBaseNote - minBaseNote + 1));
 
-    console.log(`🎯 Intervalo escolhido: ${randomInterval.name} (${randomInterval.semitones} semitons)`);
+    console.log(`🎯 Intervalo escolhido: ${randomInterval.name} (${randomInterval.semitones} semitons, dificuldade ${randomInterval.difficulty}x)`);
     console.log(`🎹 Nota base: ${randomBaseNote} (${getNoteNameFromMidi(randomBaseNote)})`);
 
     setCurrentInterval(randomInterval);
@@ -379,10 +398,11 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
     setShowResult(false);
     setStartTime(Date.now());
     setBackendResult(null);
+    setBackendError(null);
 
   }, [availableIntervals, difficulty, getNoteNameFromMidi]);
 
-  // INICIALIZAÇÃO CORRIGIDA
+  // Inicialização
   useEffect(() => {
     const initTimer = setTimeout(() => {
       if (availableIntervals.length > 0) {
@@ -394,14 +414,15 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
     return () => clearTimeout(initTimer);
   }, [availableIntervals, generateNewExercise]);
 
-  // VERIFICAR RESPOSTA COM BACKEND MELHORADO
+  // ✅ VERIFICAR RESPOSTA COM SISTEMA DE PONTUAÇÃO
   const checkAnswer = useCallback(async () => {
     if (!currentInterval || !userAnswer) return;
     
     const correct = userAnswer === currentInterval.name;
-    const timeSpent = Date.now() - startTime;
+    const timeSpent = (Date.now() - startTime) / 1000; // em segundos
 
     console.log(`🔍 Verificando resposta: ${userAnswer} vs ${currentInterval.name} = ${correct ? 'CORRETO' : 'INCORRETO'}`);
+    console.log(`🎯 Dificuldade do intervalo: ${currentInterval.difficulty}x (${currentInterval.semitones} semitons)`);
 
     // Atualizar estado local
     setIsCorrect(correct);
@@ -417,48 +438,52 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
         correct,
         userAnswer,
         expected: currentInterval.name,
-        timeSpent
+        timeSpent: timeSpent * 1000 // callback espera em ms
       });
     }
 
-    // ENVIAR PARA BACKEND
+    // ✅ ENVIAR PARA BACKEND VIA SUAS APIS
     setIsSubmitting(true);
+    setBackendError(null);
     
-    const result = await submitFrontendExercise(
-      'interval',
-      difficulty,
-      userAnswer,
-      currentInterval.name,
-      timeSpent,
-      {
-        baseNote,
-        targetNote: baseNote + currentInterval.semitones,
-        semitones: currentInterval.semitones,
-        intervalName: currentInterval.name
-      }
-    );
+    try {
+      console.log(`💯 Enviando dados com dificuldade: ${currentInterval.difficulty}x`);
 
-    setIsSubmitting(false);
-    setBackendResult(result);
+      const sessionData: SessionResult = {
+        exerciseType: 'melodic-intervals',
+        difficulty,
+        totalQuestions: 1,
+        correctAnswers: correct ? 1 : 0,
+        timeSpent: timeSpent,
+        averageResponseTime: timeSpent
+      };
 
-    // Se sucesso, atualizar progresso local
-    if (result?.success) {
-      console.log('✅ Exercício salvo com sucesso!', result);
+      const result = await progressService.updateProgress(sessionData);
+      setBackendResult(result);
+      console.log('✅ Exercício salvo via suas APIs!', result);
       
       // Recarregar progresso do usuário
-      const updatedProgress = await getUserProgress();
-      if (updatedProgress) {
-        setUserProgress(updatedProgress);
-      }
-    } else {
-      console.warn('⚠️ Falha ao salvar no backend, mas continuando localmente');
+      const updatedProgress = await progressService.getUserProgress();
+      setUserProgress(updatedProgress);
+      
+    } catch (error) {
+      console.error('⚠️ Erro ao salvar progresso:', error);
+      setBackendError(error instanceof Error ? error.message : 'Erro desconhecido');
+    } finally {
+      setIsSubmitting(false);
     }
 
-  }, [currentInterval, userAnswer, startTime, difficulty, baseNote, onComplete]);
+  }, [currentInterval, userAnswer, startTime, difficulty, onComplete]);
 
   const nextQuestion = useCallback(() => {
     generateNewExercise();
   }, [generateNewExercise]);
+
+  // Helper para buscar estatísticas de intervalos
+  const getIntervalStats = useCallback(() => {
+    if (!userProgress) return null;
+    return userProgress.exerciseStats.find(stat => stat.exerciseType === 'melodic-intervals');
+  }, [userProgress]);
 
   // Loading
   if (!currentInterval) {
@@ -474,6 +499,8 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
       </div>
     );
   }
+
+  const intervalStats = getIntervalStats();
 
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6 bg-white rounded-lg shadow-lg space-y-6">
@@ -492,7 +519,7 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
             {/* Progresso global */}
             {userProgress && (
               <div className="text-blue-600 bg-blue-100 px-3 py-1 rounded-lg">
-                Nível {userProgress.level} | {userProgress.experience} XP
+                Nível {userProgress.currentLevel} | {userProgress.totalXp} XP
               </div>
             )}
           </div>
@@ -508,10 +535,14 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
           </p>
           
           {/* Progresso nos intervalos */}
-          {userProgress?.byType?.intervals && (
+          {userProgress && (
             <div className="mt-2 text-blue-700 text-sm">
-              Intervalos completados: {userProgress.byType.intervals.completed} | 
-              Média: {userProgress.byType.intervals.averageScore.toFixed(1)}%
+              Total de exercícios: {userProgress.totalExercises} | 
+              Precisão geral: {userProgress.overallAccuracy.toFixed(1)}% |
+              Streak: {userProgress.currentGlobalStreak}
+              {intervalStats && (
+                <span> | Intervalos: {intervalStats.totalSessions} sessões, {intervalStats.averageAccuracy.toFixed(1)}% precisão</span>
+              )}
             </div>
           )}
         </div>
@@ -564,7 +595,14 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
                     : 'bg-gray-100 border-2 border-transparent hover:bg-gray-200'
                 }`}
               >
-                {interval.displayName}
+                <div className="flex justify-between items-center">
+                  <span>{interval.displayName}</span>
+                  {interval.difficulty > 1 && (
+                    <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded">
+                      {interval.difficulty}x
+                    </span>
+                  )}
+                </div>
               </button>
             ))}
           </div>
@@ -585,7 +623,7 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
           </button>
         )}
 
-        {/* RESULTADO COM GAMIFICAÇÃO */}
+        {/* RESULTADO COM FEEDBACK */}
         {showResult && (
           <div className="space-y-3">
             {/* Resultado básico */}
@@ -600,35 +638,56 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
                   ? `Muito bem! Era realmente ${currentInterval.displayName}.`
                   : `A resposta correta era: ${currentInterval.displayName}`}
               </div>
+              {/* Mostrar dificuldade do intervalo */}
+              {currentInterval && (
+                <div className="text-xs mt-2 text-gray-600">
+                  <span>Dificuldade: {currentInterval.difficulty}x</span>
+                  {currentInterval.semitones > 12 && <span className="ml-2">⭐ (Intervalo composto)</span>}
+                  <span className="ml-2">• {currentInterval.semitones} semitons</span>
+                </div>
+              )}
             </div>
 
-            {/* FEEDBACK DE GAMIFICAÇÃO */}
-            {backendResult?.success && (
+            {/* Feedback do backend */}
+            {backendResult && (
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="text-blue-800 font-medium">
-                  {backendResult.message}
+                  ✅ Progresso salvo com sucesso!
                 </div>
                 
                 {/* XP e Level Up */}
                 <div className="flex gap-4 mt-2 text-sm text-blue-700">
-                  <span>+{backendResult.experienceGained} XP</span>
-                  <span>Total: {backendResult.totalExperience} XP</span>
-                  <span>Nível: {backendResult.currentLevel}</span>
+                  <span>+{backendResult.sessionResults.xpEarned} XP</span>
+                  <span>+{backendResult.sessionResults.pointsEarned} pontos</span>
+                  <span>Total: {backendResult.updatedProgress.totalXp} XP</span>
+                  <span>Nível: {backendResult.updatedProgress.currentLevel}</span>
                 </div>
                 
                 {/* Level Up */}
-                {backendResult.levelUp && (
+                {backendResult.sessionResults.levelUp && (
                   <div className="mt-2 p-2 bg-yellow-100 border border-yellow-300 rounded text-yellow-800 font-medium">
-                    🎉 Level Up! Você chegou ao nível {backendResult.currentLevel}!
+                    🎉 Level Up! Você chegou ao nível {backendResult.sessionResults.newLevel}!
                   </div>
                 )}
                 
-                {/* Novos achievements */}
-                {backendResult.newAchievements && backendResult.newAchievements.length > 0 && (
+                {/* Novos badges */}
+                {backendResult.sessionResults.newBadges.length > 0 && (
                   <div className="mt-2 p-2 bg-purple-100 border border-purple-300 rounded text-purple-800">
-                    🏆 Novo achievement desbloqueado!
+                    🏆 Novo badge desbloqueado: {backendResult.sessionResults.newBadges[0].name}!
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Erro ao salvar */}
+            {backendError && (
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="text-yellow-800">
+                  ⚠️ Erro ao salvar progresso: {backendError}
+                </div>
+                <div className="text-sm text-yellow-700 mt-1">
+                  Você pode continuar praticando normalmente.
+                </div>
               </div>
             )}
 

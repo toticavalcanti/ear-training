@@ -1,11 +1,17 @@
-// ===================================
 // src/app/page.tsx
-// ===================================
 'use client';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getMIDIHandler } from '@/lib/midiHandler';
+import { progressService } from '@/lib/progressService'; // ✅ ADICIONADO
+
+// ✅ DECLARAÇÃO TYPESCRIPT PARA WINDOW
+declare global {
+  interface Window {
+    progressService: typeof progressService;
+  }
+}
 
 export default function Home() {
   const [midiSupported, setMidiSupported] = useState(false);
@@ -16,6 +22,14 @@ export default function Home() {
     const midiHandler = getMIDIHandler();
     setMidiSupported(midiHandler.isSupported());
     midiHandler.initialize();
+  }, []);
+
+  // ✅ DISPONIBILIZAR PROGRESSSERVICE GLOBALMENTE
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.progressService = progressService;
+      console.log('✅ progressService disponível globalmente');
+    }
   }, []);
 
   return (
@@ -57,12 +71,9 @@ export default function Home() {
             <div className="bg-gray-50 rounded-lg p-6 border hover:shadow-md transition-all">
               <div className="flex items-start justify-between mb-4">
                 <div className="text-3xl">🎵</div>
-                <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-                  Iniciante
-                </span>
               </div>
-              <h3 className="text-xl font-semibold mb-2 text-indigo-700">Identificação de Intervalos</h3>
-              <p className="text-gray-600 mb-4 text-sm">Aprenda a identificar a distância entre duas notas.</p>
+              <h3 className="text-xl font-semibold mb-2 text-indigo-700">Identificação de Intervalos Melódicos</h3>
+              <p className="text-gray-600 mb-4 text-sm">Aprenda a identificar a distância entre duas notas tocadas em sequência.</p>
               <Link href="/exercises/melodic-intervals" className="inline-flex items-center bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition-colors text-sm font-medium">
                 Iniciar Prática
               </Link>
@@ -71,13 +82,10 @@ export default function Home() {
             <div className="bg-gray-50 rounded-lg p-6 border hover:shadow-md transition-all">
               <div className="flex items-start justify-between mb-4">
                 <div className="text-3xl">🎹</div>
-                <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
-                  Intermediário
-                </span>
               </div>
-              <h3 className="text-xl font-semibold mb-2 text-indigo-700">Progressões Harmônicas</h3>
-              <p className="text-gray-600 mb-4 text-sm">Reconheça progressões de acordes comuns.</p>
-              <Link href="/exercises/progressions" className="inline-flex items-center bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition-colors text-sm font-medium">
+              <h3 className="text-xl font-semibold mb-2 text-indigo-700">Identificação de Intervalos Harmônicos</h3>
+              <p className="text-gray-600 mb-4 text-sm">Reconheça intervalos quando duas notas são tocadas simultaneamente.</p>
+              <Link href="/exercises/harmonic-intervals" className="inline-flex items-center bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition-colors text-sm font-medium">
                 Iniciar Prática
               </Link>
             </div>
@@ -85,13 +93,10 @@ export default function Home() {
             <div className="bg-gray-50 rounded-lg p-6 border hover:shadow-md transition-all">
               <div className="flex items-start justify-between mb-4">
                 <div className="text-3xl">🎶</div>
-                <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
-                  Intermediário
-                </span>
               </div>
-              <h3 className="text-xl font-semibold mb-2 text-indigo-700">Ditado Melódico</h3>
-              <p className="text-gray-600 mb-4 text-sm">Pratique a transcrição de melodias simples.</p>
-              <Link href="/exercises/melodic" className="inline-flex items-center bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition-colors text-sm font-medium">
+              <h3 className="text-xl font-semibold mb-2 text-indigo-700">Identificação de Progressões Harmônicas</h3>
+              <p className="text-gray-600 mb-4 text-sm">Reconheça cadências e progressões de acordes comuns.</p>
+              <Link href="/exercises/chord-progressions" className="inline-flex items-center bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition-colors text-sm font-medium">
                 Iniciar Prática
               </Link>
             </div>
@@ -99,13 +104,10 @@ export default function Home() {
             <div className="bg-gray-50 rounded-lg p-6 border hover:shadow-md transition-all">
               <div className="flex items-start justify-between mb-4">
                 <div className="text-3xl">🥁</div>
-                <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium">
-                  Avançado
-                </span>
               </div>
-              <h3 className="text-xl font-semibold mb-2 text-indigo-700">Ditado Rítmico</h3>
-              <p className="text-gray-600 mb-4 text-sm">Melhore suas habilidades de reconhecimento rítmico.</p>
-              <Link href="/exercises/rhythmic" className="inline-flex items-center bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition-colors text-sm font-medium">
+              <h3 className="text-xl font-semibold mb-2 text-indigo-700">Identificação de Padrões Rítmicos</h3>
+              <p className="text-gray-600 mb-4 text-sm">Melhore suas habilidades de reconhecimento rítmico e leitura de partituras.</p>
+              <Link href="/exercises/rhythmic-patterns" className="inline-flex items-center bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition-colors text-sm font-medium">
                 Iniciar Prática
               </Link>
             </div>
@@ -117,10 +119,10 @@ export default function Home() {
         <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg p-6 text-center">
           <h3 className="text-lg font-semibold text-gray-800 mb-2">Novo por aqui?</h3>
           <p className="text-gray-600 mb-4">
-            Comece com os exercícios de intervalos para desenvolver seu ouvido musical.
+            Comece com os exercícios de intervalos melódicos para desenvolver seu ouvido musical.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link href="/exercises/intervals" className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors font-medium">
+            <Link href="/exercises/melodic-intervals" className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors font-medium">
               Começar Agora
             </Link>
             <Link href="/progress" className="border border-indigo-600 text-indigo-600 px-6 py-2 rounded-lg hover:bg-indigo-50 transition-colors font-medium">

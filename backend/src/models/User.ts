@@ -34,7 +34,7 @@ const UserSchema = new Schema<IUser>({
   email: {
     type: String,
     required: [true, 'Email é obrigatório'],
-    unique: true,
+    unique: true, // ✅ Índice único automático
     trim: true,
     lowercase: true,
     match: [/^\S+@\S+\.\S+$/, 'Email inválido'],
@@ -50,6 +50,7 @@ const UserSchema = new Schema<IUser>({
     type: String,
     enum: ['free', 'premium'],
     default: 'free',
+    index: true, // ✅ Índice simples
   },
   // Campos de compatibilidade com Express
   subscriptionType: {
@@ -73,12 +74,13 @@ const UserSchema = new Schema<IUser>({
   lastActive: {
     type: Date,
     default: Date.now,
+    index: true, // ✅ Índice simples
   },
   
   googleId: {
     type: String,
-    unique: true,
-    sparse: true,
+    unique: true, // ✅ Índice único automático
+    sparse: true, // ✅ Permite nulos únicos
   },
   avatar: {
     type: String,
@@ -87,10 +89,6 @@ const UserSchema = new Schema<IUser>({
   timestamps: true,
   suppressReservedKeysWarning: true,
 });
-
-// Índices necessários
-UserSchema.index({ lastActive: 1 });
-UserSchema.index({ subscription: 1 });
 
 // Método para comparar senha
 UserSchema.methods.comparePassword = async function(password: string): Promise<boolean> {
