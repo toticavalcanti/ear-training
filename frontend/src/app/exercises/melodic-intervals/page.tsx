@@ -80,8 +80,9 @@ export default function MelodicIntervalsPage() {
   };
 
   return (
-    <div className="container mx-auto py-6 px-4">
-      <div className="mb-4 flex items-center gap-2 text-sm">
+    <div className="container mx-auto py-4 sm:py-6 px-3 sm:px-4">
+      {/* Breadcrumb */}
+      <div className="mb-3 sm:mb-4 flex items-center gap-2 text-sm">
         <Link href="/" className="text-indigo-600 hover:text-indigo-800">
           Início
         </Link>
@@ -89,22 +90,24 @@ export default function MelodicIntervalsPage() {
         <span className="text-gray-600">Intervalos Melódicos</span>
       </div>
 
-      <div className="mb-6">
+      {/* Header */}
+      <div className="mb-4 sm:mb-6">
         <div className="flex items-center gap-3 mb-2">
           <div className="bg-blue-100 p-2 rounded-lg">
-            <span className="text-2xl">🎼</span>
+            <span className="text-xl sm:text-2xl">🎼</span>
           </div>
-          <h1 className="text-3xl font-bold text-gray-800">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
             Intervalos Melódicos
           </h1>
         </div>
-        <p className="text-gray-600">
+        <p className="text-gray-600 text-sm sm:text-base">
           Olá, {user?.name}! Desenvolva seu ouvido musical identificando intervalos
           melódicos - notas tocadas em sequência, uma após a outra.
         </p>
         
+        {/* Session Progress */}
         {exerciseCount > 0 && (
-          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+          <div className="mt-3 sm:mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
             <div className="text-green-800 text-sm">
               <strong>Sessão atual:</strong> {correctCount}/{exerciseCount} corretos 
               ({exerciseCount > 0 ? Math.round((correctCount / exerciseCount) * 100) : 0}% de acerto)
@@ -113,61 +116,96 @@ export default function MelodicIntervalsPage() {
         )}
       </div>
 
-      <div className="mb-6">
-        <h3 className="text-lg font-semibold mb-3">Escolha a dificuldade:</h3>
-        <div className="flex gap-3 flex-wrap">
+      {/* Difficulty Selection - OTIMIZADO PARA MOBILE */}
+      <div className="mb-4 sm:mb-6">
+        <h3 className="text-base sm:text-lg font-semibold mb-3">Escolha a dificuldade:</h3>
+        
+        {/* Grid responsivo para os botões */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 max-w-md sm:max-w-none">
+          {/* Iniciante */}
           <button
             onClick={() => handleDifficultyChange('beginner')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg font-medium transition-colors text-sm sm:text-base ${
               difficulty === 'beginner'
-                ? 'bg-blue-600 text-white'
+                ? 'bg-blue-600 text-white shadow-md'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
           >
             Iniciante
           </button>
+
+          {/* Intermediário */}
           <button
             onClick={() => handleDifficultyChange('intermediate')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg font-medium transition-colors text-sm sm:text-base ${
               difficulty === 'intermediate'
-                ? 'bg-blue-600 text-white'
+                ? 'bg-blue-600 text-white shadow-md'
                 : user?.subscription === 'premium'
                 ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             }`}
             disabled={user?.subscription !== 'premium'}
           >
-            Intermediário {user?.subscription !== 'premium' && '🔒'}
+            <span className="flex items-center justify-center gap-1">
+              <span>Intermediário</span>
+              {user?.subscription !== 'premium' && (
+                <span className="text-xs">🔒</span>
+              )}
+            </span>
           </button>
+
+          {/* Avançado */}
           <button
             onClick={() => handleDifficultyChange('advanced')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg font-medium transition-colors text-sm sm:text-base ${
               difficulty === 'advanced'
-                ? 'bg-blue-600 text-white'
+                ? 'bg-blue-600 text-white shadow-md'
                 : user?.subscription === 'premium'
                 ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             }`}
             disabled={user?.subscription !== 'premium'}
           >
-            Avançado {user?.subscription !== 'premium' && '🔒'}
+            <span className="flex items-center justify-center gap-1">
+              <span>Avançado</span>
+              {user?.subscription !== 'premium' && (
+                <span className="text-xs">🔒</span>
+              )}
+            </span>
           </button>
         </div>
+
+        {/* Premium Notice - Mais compacto no mobile */}
+        {user?.subscription !== 'premium' && (
+          <div className="mt-3 p-2 sm:p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-start gap-2">
+              <span className="text-amber-600 text-base sm:text-lg mt-0.5">✨</span>
+              <div className="text-amber-800 text-xs sm:text-sm">
+                <strong>Upgrade para Premium:</strong> Desbloqueie os níveis intermediário e avançado para treinar intervalos mais complexos!
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
+      {/* Exercise Component */}
       <MelodicIntervalExercise 
         key={difficulty}
         difficulty={difficulty} 
         onComplete={handleExerciseComplete} 
       />
       
-      <div className="mt-8 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-        <h4 className="font-semibold text-yellow-800 mb-2">💡 Dicas para intervalos melódicos:</h4>
-        <ul className="text-yellow-700 text-sm space-y-1">
-          <li>• Escute atentamente a sequência: primeira nota → segunda nota</li>
-          <li>• Use o piano para explorar os intervalos antes de responder</li>
-          <li>• Tente cantar ou visualizar a distância entre as notas</li>
-          <li>• Pratique regularmente para desenvolver a memória auditiva</li>
+      {/* Tips Section - Mais compacto no mobile */}
+      <div className="mt-6 sm:mt-8 p-3 sm:p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+        <h4 className="font-semibold text-yellow-800 mb-2 text-sm sm:text-base flex items-center gap-2">
+          <span className="text-base sm:text-lg">💡</span>
+          <span>Dicas para intervalos melódicos</span>
+        </h4>
+        <ul className="text-yellow-700 text-xs sm:text-sm space-y-1">
+          <li>• Escute atentamente: primeira nota → segunda nota</li>
+          <li>• Use o piano para explorar antes de responder</li>
+          <li>• Tente cantar a distância entre as notas</li>
+          <li>• Pratique regularmente para desenvolver o ouvido</li>
         </ul>
       </div>
     </div>

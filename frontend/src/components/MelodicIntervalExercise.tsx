@@ -648,15 +648,15 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
   // Loading
   if (!currentInterval) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-3 sm:p-4">
-        <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 text-center max-w-md w-full">
-          <div className="text-4xl sm:text-6xl mb-4">🎯</div>
-          <div className="text-gray-800 text-lg sm:text-xl font-medium mb-2">Preparando exercício...</div>
-          <div className="text-gray-600 text-sm">
-            Dificuldade: {difficulty === 'beginner' ? 'Iniciante' : difficulty === 'intermediate' ? 'Intermediário' : 'Avançado'}
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-2 sm:p-4">
+        <div className="bg-white rounded-lg shadow-lg p-4 sm:p-8 text-center max-w-xs sm:max-w-md w-full">
+          <div className="text-3xl sm:text-6xl mb-3 sm:mb-4">🎯</div>
+          <div className="text-gray-800 text-sm sm:text-xl font-medium mb-2">Preparando...</div>
+          <div className="text-gray-600 text-xs sm:text-sm">
+            {difficulty === 'beginner' ? 'Iniciante' : difficulty === 'intermediate' ? 'Intermediário' : 'Avançado'}
           </div>
-          <div className="mt-4">
-            <div className="animate-pulse bg-gray-200 h-2 rounded-full"></div>
+          <div className="mt-3 sm:mt-4">
+            <div className="animate-pulse bg-gray-200 h-1.5 sm:h-2 rounded-full"></div>
           </div>
         </div>
       </div>
@@ -666,80 +666,67 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
   const intervalStats = getIntervalStats();
 
   return (
-    <div className="min-h-screen bg-gray-50 p-2 sm:p-3 md:p-4">
+    <div className="min-h-screen bg-gray-50 p-1.5 sm:p-3 md:p-4">
       <div className="max-w-6xl mx-auto">
         
         {/* HEADER COMPACTO E LIMPO */}
-        <div className="bg-white rounded-xl shadow-sm mb-4 sm:mb-6 p-4 sm:p-6">
-          <div className="flex flex-col gap-4">
+        <div className="bg-white rounded-lg shadow-sm mb-3 sm:mb-6 p-3 sm:p-6">
+          <div className="flex flex-col gap-3 sm:gap-4">
             
             {/* Título e Dificuldade */}
-            <div className="text-center sm:text-left">
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2">
+            <div className="text-center">
+              <h1 className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2">
                 🎵 Intervalos Melódicos
               </h1>
-              <div className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-2 sm:gap-3">
-                <span className={`px-3 py-1 rounded-full text-white text-sm font-medium ${
+              <div className="flex flex-col items-center gap-2">
+                <span className={`px-2 py-1 rounded-full text-white text-xs sm:text-sm font-medium ${
                   difficulty === 'beginner' ? 'bg-green-500' :
                   difficulty === 'intermediate' ? 'bg-yellow-500' :
                   'bg-red-500'
                 }`}>
                   {difficulty === 'beginner' ? 'Iniciante' : difficulty === 'intermediate' ? 'Intermediário' : 'Avançado'}
                 </span>
-                <span className="text-gray-600 text-xs sm:text-sm text-center">
-                  Ouça as duas notas em sequência
+                <span className="text-gray-600 text-xs text-center max-w-xs">
+                  Ouça duas notas em sequência
                 </span>
               </div>
             </div>
 
-            {/* Progresso Completo */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-3">
+            {/* Progresso Essencial - Só os mais importantes no mobile */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
               {/* Sessão Atual */}
-              <div className="bg-green-50 border border-green-200 rounded-lg px-2 sm:px-3 py-2 text-center">
+              <div className="bg-green-50 border border-green-200 rounded-md px-2 py-1.5 text-center">
                 <div className="text-green-700 text-xs font-medium">Sessão</div>
-                <div className="text-green-800 font-bold text-sm sm:text-lg">{score}/{totalQuestions}</div>
-                {totalQuestions > 0 && (
-                  <div className="text-xs text-green-600">
-                    {Math.round((score / totalQuestions) * 100)}%
-                  </div>
-                )}
+                <div className="text-green-800 font-bold text-sm">{score}/{totalQuestions}</div>
               </div>
               
               {userProgress && (
                 <>
                   {/* Nível */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg px-2 sm:px-3 py-2 text-center">
+                  <div className="bg-blue-50 border border-blue-200 rounded-md px-2 py-1.5 text-center">
                     <div className="text-blue-700 text-xs font-medium">Nível</div>
-                    <div className="text-blue-800 font-bold text-sm sm:text-lg">{userProgress.currentLevel}</div>
-                    <div className="text-xs text-blue-600">{userProgress.totalXp} XP</div>
+                    <div className="text-blue-800 font-bold text-sm">{userProgress.currentLevel}</div>
                   </div>
                   
-                  {/* Precisão Geral */}
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg px-2 sm:px-3 py-2 text-center">
+                  {/* Nos breakpoints maiores, mostrar mais métricas */}
+                  <div className="hidden sm:block bg-purple-50 border border-purple-200 rounded-md px-2 py-1.5 text-center">
                     <div className="text-purple-700 text-xs font-medium">Precisão</div>
-                    <div className="text-purple-800 font-bold text-sm sm:text-lg">{userProgress.overallAccuracy.toFixed(1)}%</div>
-                    <div className="text-xs text-purple-600">{userProgress.totalCorrectAnswers}/{userProgress.totalExercises}</div>
+                    <div className="text-purple-800 font-bold text-sm">{userProgress.overallAccuracy.toFixed(0)}%</div>
                   </div>
                   
-                  {/* Streak */}
-                  <div className="bg-orange-50 border border-orange-200 rounded-lg px-2 sm:px-3 py-2 text-center">
-                    <div className="text-orange-700 text-xs font-medium">Sequência</div>
-                    <div className="text-orange-800 font-bold text-sm sm:text-lg">{userProgress.currentGlobalStreak}</div>
-                    <div className="text-xs text-orange-600">melhor: {userProgress.bestGlobalStreak}</div>
+                  <div className="hidden sm:block bg-orange-50 border border-orange-200 rounded-md px-2 py-1.5 text-center">
+                    <div className="text-orange-700 text-xs font-medium">Streak</div>
+                    <div className="text-orange-800 font-bold text-sm">{userProgress.currentGlobalStreak}</div>
                   </div>
                   
-                  {/* Total Exercícios */}
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg px-2 sm:px-3 py-2 text-center">
+                  <div className="hidden lg:block bg-gray-50 border border-gray-200 rounded-md px-2 py-1.5 text-center">
                     <div className="text-gray-700 text-xs font-medium">Total</div>
-                    <div className="text-gray-800 font-bold text-sm sm:text-lg">{userProgress.totalExercises}</div>
-                    <div className="text-xs text-gray-600">exercícios</div>
+                    <div className="text-gray-800 font-bold text-sm">{userProgress.totalExercises}</div>
                   </div>
                   
-                  {/* Pontos Total */}
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-2 sm:px-3 py-2 text-center">
+                  <div className="hidden lg:block bg-yellow-50 border border-yellow-200 rounded-md px-2 py-1.5 text-center">
                     <div className="text-yellow-700 text-xs font-medium">Pontos</div>
-                    <div className="text-yellow-800 font-bold text-sm sm:text-lg">{userProgress.totalPoints}</div>
-                    <div className="text-xs text-yellow-600">total</div>
+                    <div className="text-yellow-800 font-bold text-sm">{Math.floor(userProgress.totalPoints/1000)}k</div>
                   </div>
                 </>
               )}
@@ -748,24 +735,24 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
 
           {/* Tendência da Sessão - APENAS quando há dados suficientes */}
           {sessionHistory.length >= 3 && (
-            <div className="mt-6 pt-4 border-t border-gray-200">
-              <div className="text-sm font-medium text-gray-700 mb-3">📈 Tendência da Sessão</div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-gray-200">
+              <div className="text-xs sm:text-sm font-medium text-gray-700 mb-2 sm:mb-3">📈 Tendência</div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 <div className="text-center">
                   <div className="text-xs text-gray-600">Tempo Médio</div>
-                  <div className="font-bold text-gray-800">
+                  <div className="font-bold text-gray-800 text-sm">
                     {(sessionHistory.reduce((sum, h) => sum + h.timeSpent, 0) / sessionHistory.length).toFixed(1)}s
                   </div>
                 </div>
                 <div className="text-center">
                   <div className="text-xs text-gray-600">Últimas 3</div>
-                  <div className="font-bold text-gray-800">
+                  <div className="font-bold text-gray-800 text-sm">
                     {sessionHistory.slice(-3).filter(h => h.correct).length}/3
                   </div>
                 </div>
                 <div className="text-center">
-                  <div className="text-xs text-gray-600">Análise Reflexiva</div>
-                  <div className="font-bold text-gray-800">
+                  <div className="text-xs text-gray-600">Reflexiva</div>
+                  <div className="font-bold text-gray-800 text-sm">
                     {sessionHistory.filter(h => h.timeSpent >= 3 && h.timeSpent <= 15).length}/{sessionHistory.length}
                   </div>
                 </div>
@@ -1080,9 +1067,9 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
           </div>
         </div>
 
-        {/* PIANO - SEÇÃO SEPARADA */}
-        <div className="mt-6 sm:mt-8 bg-white rounded-xl shadow-sm p-4 sm:p-6">
-          <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4 text-center text-gray-800">
+        {/* PIANO - SEÇÃO COMPACTA */}
+        <div className="mt-4 sm:mt-8 bg-white rounded-lg shadow-sm p-3 sm:p-6">
+          <h3 className="text-base sm:text-xl font-bold mb-2 sm:mb-4 text-center text-gray-800">
             🎹 Piano Virtual
           </h3>
           <BeautifulPianoKeyboard />
@@ -1090,12 +1077,12 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
 
         {/* Erro de Backend */}
         {backendError && (
-          <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
-            <div className="text-yellow-800 font-medium text-sm">
-              ⚠️ Erro ao salvar progresso: {backendError}
+          <div className="mt-3 sm:mt-6 p-2 sm:p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="text-yellow-800 font-medium text-xs sm:text-sm">
+              ⚠️ Erro: {backendError}
             </div>
-            <div className="text-sm text-yellow-700 mt-1">
-              Você pode continuar praticando normalmente.
+            <div className="text-xs text-yellow-700 mt-1">
+              Continue praticando normalmente.
             </div>
           </div>
         )}
