@@ -98,6 +98,17 @@ interface UpdateProgressResponse {
     levelUp: boolean;
     newLevel: number;
     newBadges: Badge[];
+    // ✅ NOVO: Breakdown detalhado do backend
+    pointsBreakdown?: {
+      basePoints: number;
+      correctnessBonus: number;
+      thoughtfulnessBonus: number;
+      improvementBonus: number;
+      participationBonus: number;
+      recoveryBonus: number;
+      difficultyMultiplier: number;
+      encouragement: string;
+    };
   };
   updatedProgress: {
     totalXp: number;
@@ -106,19 +117,6 @@ interface UpdateProgressResponse {
     currentGlobalStreak: number;
     overallAccuracy: number;
   };
-}
-
-// ✅ NOVO: Interface para métricas detalhadas de engajamento
-interface EngagementMetrics {
-  basePoints: number;
-  correctnessBonus: number;
-  thoughtfulnessBonus: number;
-  improvementBonus: number;
-  participationBonus: number;
-  recoveryBonus: number;
-  totalPoints: number;
-  feedback: string[];
-  encouragement: string;
 }
 
 // =============================================
@@ -202,8 +200,15 @@ const getIntervalDifficulty = (semitones: number): number => {
   return 2; // Mais que duas oitavas = difícil
 };
 
+// ✅ FUNÇÃO UTILITÁRIA PARA FORMATAR PONTOS
+const formatPoints = (points: number): string => {
+  if (points >= 1000000) return `${Math.floor(points/1000000)}M`;
+  if (points >= 1000) return `${Math.floor(points/1000)}k`;
+  return points.toString();
+};
+
 // =============================================
-// ✅ DEFINIÇÃO DOS INTERVALOS COM DIFICULDADE CALCULADA
+// ✅ DEFINIÇÃO DOS INTERVALOS COM DIFICULDADE CALCULADA E MAIS INTERVALOS NO BEGINNER
 // =============================================
 const intervalsByDifficulty: Record<string, IntervalDefinition[]> = {
   beginner: [
@@ -211,7 +216,10 @@ const intervalsByDifficulty: Record<string, IntervalDefinition[]> = {
     { name: 'Segunda maior', semitones: 2, displayName: 'Segunda maior (2 semitons)', difficulty: getIntervalDifficulty(2) },
     { name: 'Terça menor', semitones: 3, displayName: 'Terça menor (3 semitons)', difficulty: getIntervalDifficulty(3) },
     { name: 'Terça maior', semitones: 4, displayName: 'Terça maior (4 semitons)', difficulty: getIntervalDifficulty(4) },
+    { name: 'Quarta justa', semitones: 5, displayName: 'Quarta justa (5 semitons)', difficulty: getIntervalDifficulty(5) },
     { name: 'Quinta justa', semitones: 7, displayName: 'Quinta justa (7 semitons)', difficulty: getIntervalDifficulty(7) },
+    { name: 'Sexta menor', semitones: 8, displayName: 'Sexta menor (8 semitons)', difficulty: getIntervalDifficulty(8) },
+    { name: 'Sexta maior', semitones: 9, displayName: 'Sexta maior (9 semitons)', difficulty: getIntervalDifficulty(9) },
     { name: 'Oitava', semitones: 12, displayName: 'Oitava (12 semitons)', difficulty: getIntervalDifficulty(12) }
   ],
   intermediate: [
@@ -272,16 +280,12 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isPianoReady, setIsPianoReady] = useState<boolean>(false);
 
-  // ✅ NOVOS ESTADOS para métricas de engajamento
+  // ✅ SIMPLIFICADO: Apenas histórico da sessão para tendências (sem cálculo de pontos)
   const [sessionHistory, setSessionHistory] = useState<Array<{
     correct: boolean;
     timeSpent: number;
-    difficulty: number;
     timestamp: number;
   }>>([]);
-  const [currentEngagement, setCurrentEngagement] = useState<EngagementMetrics | null>(null);
-  const [consecutiveErrors, setConsecutiveErrors] = useState<number>(0);
-  const [lastAccuracyTrend, setLastAccuracyTrend] = useState<number[]>([]);
 
   // Estados para backend
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -295,114 +299,6 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
     () => intervalsByDifficulty[difficulty] || [],
     [difficulty]
   );
-
-  // ✅ NOVO: Sistema de Pontuação Engajante
-  const calculateEngagementScore = useCallback((
-    correct: boolean,
-    timeSpent: number,
-    intervalDifficulty: number
-  ): EngagementMetrics => {
-    const feedback: string[] = [];
-    
-    // 1. PONTOS BASE - Todos sempre ganham algo
-    const basePoints = Math.round(20 * intervalDifficulty); // 20-40 pontos base
-    feedback.push(`+${basePoints} pontos base`);
-
-    // 2. BONUS DE CORREÇÃO - Não é tudo ou nada
-    let correctnessBonus = 0;
-    if (correct) {
-      correctnessBonus = Math.round(30 * intervalDifficulty);
-      feedback.push(`+${correctnessBonus} pontos por acerto!`);
-    } else {
-      // ✅ Ainda ganha alguma coisa por tentar
-      correctnessBonus = Math.round(5 * intervalDifficulty);
-      feedback.push(`+${correctnessBonus} pontos por tentativa`);
-    }
-
-    // 3. BONUS DE REFLEXÃO - Encoraja análise cuidadosa
-    let thoughtfulnessBonus = 0;
-    const idealTime = 8; // 8 segundos = tempo ideal para análise
-    const timeRatio = timeSpent / idealTime;
-    
-    if (timeSpent < 3) {
-      // Muito rápido = provável chute
-      thoughtfulnessBonus = 0;
-      feedback.push(`⚡ Resposta muito rápida - tente refletir mais`);
-    } else if (timeSpent >= 3 && timeSpent <= 15) {
-      // Tempo bom de análise
-      thoughtfulnessBonus = Math.round(15 * intervalDifficulty * Math.min(1, timeRatio));
-      feedback.push(`+${thoughtfulnessBonus} pontos por análise cuidadosa`);
-    } else {
-      // Tempo excessivo, mas ainda positivo
-      thoughtfulnessBonus = Math.round(5 * intervalDifficulty);
-      feedback.push(`+${thoughtfulnessBonus} pontos por persistência`);
-    }
-
-    // 4. BONUS DE MELHORIA - Recompensa progresso
-    let improvementBonus = 0;
-    if (sessionHistory.length >= 3) {
-      const recent = sessionHistory.slice(-3);
-      const recentAccuracy = recent.filter(h => h.correct).length / recent.length;
-      const previousAccuracy = lastAccuracyTrend.length > 0 ? lastAccuracyTrend[lastAccuracyTrend.length - 1] : 0;
-      
-      if (recentAccuracy > previousAccuracy) {
-        improvementBonus = Math.round(20 * intervalDifficulty);
-        feedback.push(`+${improvementBonus} pontos por melhoria!`);
-      }
-    }
-
-    // 5. BONUS DE PARTICIPAÇÃO - Encoraja prática
-    const participationBonus = Math.round(10 * intervalDifficulty);
-    feedback.push(`+${participationBonus} pontos por participação`);
-
-    // 6. BONUS DE RECUPERAÇÃO - Recovery mechanics
-    let recoveryBonus = 0;
-    if (!correct && consecutiveErrors >= 2) {
-      // Após 2+ erros, próxima tentativa vale mais
-      recoveryBonus = Math.round(15 * intervalDifficulty);
-      feedback.push(`+${recoveryBonus} pontos de recuperação - não desista!`);
-    } else if (correct && consecutiveErrors >= 1) {
-      // Acertou após erro(s)
-      recoveryBonus = Math.round(25 * intervalDifficulty * Math.min(consecutiveErrors, 3));
-      feedback.push(`+${recoveryBonus} pontos por quebrar sequência de erros! 🎉`);
-    }
-
-    const totalPoints = basePoints + correctnessBonus + thoughtfulnessBonus + 
-                       improvementBonus + participationBonus + recoveryBonus;
-
-    // 7. MENSAGEM DE ENCORAJAMENTO
-    let encouragement = '';
-    if (correct) {
-      const excellentReasons = [];
-      if (thoughtfulnessBonus > 10) excellentReasons.push('análise cuidadosa');
-      if (recoveryBonus > 0) excellentReasons.push('recuperação');
-      if (improvementBonus > 0) excellentReasons.push('melhoria consistente');
-      
-      if (excellentReasons.length > 0) {
-        encouragement = `Excelente! Destaque em: ${excellentReasons.join(', ')}`;
-      } else {
-        encouragement = 'Muito bem! Continue assim!';
-      }
-    } else {
-      if (timeSpent >= 5) {
-        encouragement = 'Boa análise! A prática leva à perfeição 🎯';
-      } else {
-        encouragement = 'Tente ouvir novamente e analise com calma 🎵';
-      }
-    }
-
-    return {
-      basePoints,
-      correctnessBonus,
-      thoughtfulnessBonus,
-      improvementBonus,
-      participationBonus,
-      recoveryBonus,
-      totalPoints,
-      feedback,
-      encouragement
-    };
-  }, [sessionHistory, consecutiveErrors, lastAccuracyTrend]);
 
   // Buscar progresso inicial usando progressService
   useEffect(() => {
@@ -456,6 +352,7 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
     return `${note}${octave}`;
   }, []);
 
+  // ✅ FUNÇÃO DE TOCAR INTERVALO COM DIREÇÃO VERDADEIRAMENTE ALEATÓRIA
   const playInterval = useCallback(async () => {
     if (!currentInterval || !isPianoReady) {
       console.log('🎹 Piano ainda não está pronto ou intervalo não definido');
@@ -465,28 +362,44 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
     setIsPlaying(true);
 
     try {
-      const baseName = getNoteNameFromMidi(baseNote);
-      const topName = getNoteNameFromMidi(baseNote + currentInterval.semitones);
-      const baseFreq = midiToFrequency(baseNote);
-      const topFreq = midiToFrequency(baseNote + currentInterval.semitones);
+      // ✅ DEFINIR NOTAS GRAVE E AGUDA
+      const lowerNote = baseNote; // Nota mais grave
+      const upperNote = baseNote + currentInterval.semitones; // Nota mais aguda
+      
+      const lowerName = getNoteNameFromMidi(lowerNote);
+      const upperName = getNoteNameFromMidi(upperNote);
+      const lowerFreq = midiToFrequency(lowerNote);
+      const upperFreq = midiToFrequency(upperNote);
 
-      console.log(`🎵 Tocando intervalo: ${baseName} → ${topName} (${currentInterval.name}, dificuldade ${currentInterval.difficulty}x)`);
+      // ✅ DECIDIR DIREÇÃO ALEATORIAMENTE (50/50)
+      const startWithLower = Math.random() < 0.5; // 50% chance cada direção
+      
+      // ✅ DETERMINAR ORDEM DE EXECUÇÃO
+      const firstNote = startWithLower ? lowerName : upperName;
+      const secondNote = startWithLower ? upperName : lowerName;
+      const firstFreq = startWithLower ? lowerFreq : upperFreq;
+      const secondFreq = startWithLower ? upperFreq : lowerFreq;
+
+      const direction = startWithLower ? '↗️ Grave→Agudo' : '↘️ Agudo→Grave';
+      console.log(`🎵 Tocando intervalo ${direction}: ${firstNote} → ${secondNote} (${currentInterval.name}, dificuldade ${currentInterval.difficulty}x)`);
 
       const playNote = window.playPianoNote;
       const stopNote = window.stopPianoNote;
 
       if (typeof playNote === 'function' && typeof stopNote === 'function') {
-        await playNote(baseName, baseFreq);
+        // Tocar primeira nota
+        await playNote(firstNote, firstFreq);
 
         setTimeout(async () => {
           const playNote2 = window.playPianoNote;
           const stopNote2 = window.stopPianoNote;
           
           if (typeof playNote2 === 'function' && typeof stopNote2 === 'function') {
-            stopNote2(baseName);
+            stopNote2(firstNote);
             
             setTimeout(async () => {
-              await playNote2(topName, topFreq);
+              // Tocar segunda nota
+              await playNote2(secondNote, secondFreq);
               setTimeout(() => setIsPlaying(false), 800);
             }, 50);
           } else {
@@ -531,7 +444,6 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
     setStartTime(Date.now());
     setBackendResult(null);
     setBackendError(null);
-    setCurrentEngagement(null);
 
   }, [availableIntervals, difficulty, getNoteNameFromMidi]);
 
@@ -547,7 +459,7 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
     return () => clearTimeout(initTimer);
   }, [availableIntervals, generateNewExercise]);
 
-  // ✅ VERIFICAR RESPOSTA COM SISTEMA DE PONTUAÇÃO ENGAJANTE
+  // ✅ VERIFICAR RESPOSTA - SIMPLIFICADO PARA AGUARDAR BACKEND
   const checkAnswer = useCallback(async () => {
     if (!currentInterval || !userAnswer) return;
     
@@ -557,32 +469,13 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
     console.log(`🔍 Verificando resposta: ${userAnswer} vs ${currentInterval.name} = ${correct ? 'CORRETO' : 'INCORRETO'}`);
     console.log(`🎯 Dificuldade do intervalo: ${currentInterval.difficulty}x (${currentInterval.semitones} semitons)`);
 
-    // ✅ CALCULAR MÉTRICAS DE ENGAJAMENTO
-    const engagement = calculateEngagementScore(correct, timeSpent, currentInterval.difficulty);
-    setCurrentEngagement(engagement);
-
-    // ✅ ATUALIZAR HISTÓRICO DA SESSÃO
+    // ✅ ATUALIZAR APENAS HISTÓRICO DA SESSÃO (para tendências)
     const sessionEntry = {
       correct,
       timeSpent,
-      difficulty: currentInterval.difficulty,
       timestamp: Date.now()
     };
     setSessionHistory(prev => [...prev, sessionEntry]);
-
-    // ✅ ATUALIZAR CONTADORES DE ERRO/TENDÊNCIA
-    if (correct) {
-      setConsecutiveErrors(0);
-    } else {
-      setConsecutiveErrors(prev => prev + 1);
-    }
-
-    // Atualizar tendência de precisão
-    if (sessionHistory.length >= 4) {
-      const recent = sessionHistory.slice(-4);
-      const accuracy = recent.filter(h => h.correct).length / recent.length;
-      setLastAccuracyTrend(prev => [...prev.slice(-2), accuracy]);
-    }
 
     // Atualizar estado local
     setIsCorrect(correct);
@@ -602,12 +495,12 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
       });
     }
 
-    // ✅ ENVIAR PARA BACKEND COM PONTUAÇÃO CUSTOMIZADA
+    // ✅ ENVIAR PARA BACKEND E AGUARDAR PONTUAÇÃO COMPLETA
     setIsSubmitting(true);
     setBackendError(null);
     
     try {
-      console.log(`💯 Enviando dados com pontuação engajante: ${engagement.totalPoints} pontos`);
+      console.log(`💾 Enviando dados para backend calcular pontuação...`);
 
       const sessionData: SessionResult = {
         exerciseType: 'melodic-intervals',
@@ -620,7 +513,7 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
 
       const result = await progressService.updateProgress(sessionData);
       setBackendResult(result);
-      console.log('✅ Exercício salvo via suas APIs!', result);
+      console.log('✅ Exercício salvo e pontuação calculada pelo backend:', result);
       
       // Recarregar progresso do usuário
       const updatedProgress = await progressService.getUserProgress();
@@ -633,7 +526,7 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
       setIsSubmitting(false);
     }
 
-  }, [currentInterval, userAnswer, startTime, difficulty, onComplete, calculateEngagementScore, sessionHistory]);
+  }, [currentInterval, userAnswer, startTime, difficulty, onComplete]);
 
   const nextQuestion = useCallback(() => {
     generateNewExercise();
@@ -726,7 +619,7 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
                   
                   <div className="hidden lg:block bg-yellow-50 border border-yellow-200 rounded-md px-2 py-1.5 text-center">
                     <div className="text-yellow-700 text-xs font-medium">Pontos</div>
-                    <div className="text-yellow-800 font-bold text-sm">{Math.floor(userProgress.totalPoints/1000)}k</div>
+                    <div className="text-yellow-800 font-bold text-sm">{formatPoints(userProgress.totalPoints)}</div>
                   </div>
                 </>
               )}
@@ -807,14 +700,21 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
                 </button>
                 
                 <p className="mt-4 text-gray-600 text-sm">
-                  Clique para ouvir o intervalo (primeira nota → segunda nota em sequência)
+                  Clique para ouvir o intervalo (duas notas em sequência, direção aleatória)
                 </p>
+                
+                {sessionHistory.length >= 2 && (
+                  <div className="mt-2 text-xs text-blue-600">
+                    💡 Dica: Tempo ideal entre 3-12 segundos para máximo bonus de reflexão
+                  </div>
+                )}
                 
                 {currentInterval && (
                   <div className="mt-3 text-xs text-gray-500">
                     Dificuldade: {currentInterval.difficulty}x
                     {currentInterval.semitones > 12 && <span className="ml-2">⭐</span>}
                     <span className="ml-2">• {currentInterval.semitones} semitons</span>
+                    <span className="ml-2">• 🎲 Direção aleatória</span>
                   </div>
                 )}
               </div>
@@ -935,74 +835,74 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
                   </div>
                 </div>
 
-                {/* Pontuação Detalhada */}
-                {currentEngagement && (
+                {/* ✅ PONTUAÇÃO DO BACKEND */}
+                {backendResult && backendResult.sessionResults.pointsBreakdown && (
                   <div className="bg-white rounded-xl shadow-sm p-6">
                     <div className="text-center mb-4">
                       <div className="inline-flex items-center gap-2 bg-purple-100 px-4 py-2 rounded-xl border border-purple-300">
                         <span className="text-2xl">💎</span>
                         <span className="text-purple-800 font-bold text-xl">
-                          {currentEngagement.totalPoints}
+                          {backendResult.sessionResults.pointsEarned}
                         </span>
                         <span className="text-purple-600 font-medium">pontos</span>
                       </div>
                     </div>
                     
-                    {/* Breakdown dos Pontos */}
+                    {/* Breakdown dos Pontos do Backend */}
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
-                      {currentEngagement.basePoints > 0 && (
+                      {backendResult.sessionResults.pointsBreakdown.basePoints > 0 && (
                         <div className="bg-gray-50 p-2 rounded text-center border">
                           <div className="text-sm mb-1">🏁</div>
                           <div className="text-xs text-gray-600">Base</div>
-                          <div className="font-bold text-purple-700 text-sm">+{currentEngagement.basePoints}</div>
+                          <div className="font-bold text-purple-700 text-sm">+{backendResult.sessionResults.pointsBreakdown.basePoints}</div>
                         </div>
                       )}
                       
-                      {currentEngagement.correctnessBonus > 0 && (
+                      {backendResult.sessionResults.pointsBreakdown.correctnessBonus > 0 && (
                         <div className="bg-gray-50 p-2 rounded text-center border">
                           <div className="text-sm mb-1">{isCorrect ? '✅' : '🎯'}</div>
                           <div className="text-xs text-gray-600">{isCorrect ? 'Acerto' : 'Tentativa'}</div>
-                          <div className="font-bold text-purple-700 text-sm">+{currentEngagement.correctnessBonus}</div>
+                          <div className="font-bold text-purple-700 text-sm">+{backendResult.sessionResults.pointsBreakdown.correctnessBonus}</div>
                         </div>
                       )}
                       
-                      {currentEngagement.thoughtfulnessBonus > 0 && (
+                      {backendResult.sessionResults.pointsBreakdown.thoughtfulnessBonus > 0 && (
                         <div className="bg-gray-50 p-2 rounded text-center border">
                           <div className="text-sm mb-1">🧠</div>
                           <div className="text-xs text-gray-600">Reflexão</div>
-                          <div className="font-bold text-purple-700 text-sm">+{currentEngagement.thoughtfulnessBonus}</div>
+                          <div className="font-bold text-purple-700 text-sm">+{backendResult.sessionResults.pointsBreakdown.thoughtfulnessBonus}</div>
                         </div>
                       )}
                       
-                      {currentEngagement.improvementBonus > 0 && (
+                      {backendResult.sessionResults.pointsBreakdown.improvementBonus > 0 && (
                         <div className="bg-gray-50 p-2 rounded text-center border">
                           <div className="text-sm mb-1">📈</div>
                           <div className="text-xs text-gray-600">Melhoria</div>
-                          <div className="font-bold text-purple-700 text-sm">+{currentEngagement.improvementBonus}</div>
+                          <div className="font-bold text-purple-700 text-sm">+{backendResult.sessionResults.pointsBreakdown.improvementBonus}</div>
                         </div>
                       )}
                       
-                      {currentEngagement.participationBonus > 0 && (
+                      {backendResult.sessionResults.pointsBreakdown.participationBonus > 0 && (
                         <div className="bg-gray-50 p-2 rounded text-center border">
                           <div className="text-sm mb-1">🎵</div>
                           <div className="text-xs text-gray-600">Participação</div>
-                          <div className="font-bold text-purple-700 text-sm">+{currentEngagement.participationBonus}</div>
+                          <div className="font-bold text-purple-700 text-sm">+{backendResult.sessionResults.pointsBreakdown.participationBonus}</div>
                         </div>
                       )}
                       
-                      {currentEngagement.recoveryBonus > 0 && (
+                      {backendResult.sessionResults.pointsBreakdown.recoveryBonus > 0 && (
                         <div className="bg-gray-50 p-2 rounded text-center border">
                           <div className="text-sm mb-1">🔄</div>
                           <div className="text-xs text-gray-600">Recuperação</div>
-                          <div className="font-bold text-purple-700 text-sm">+{currentEngagement.recoveryBonus}</div>
+                          <div className="font-bold text-purple-700 text-sm">+{backendResult.sessionResults.pointsBreakdown.recoveryBonus}</div>
                         </div>
                       )}
                     </div>
                     
-                    {/* Mensagem de Encorajamento */}
+                    {/* Mensagem de Encorajamento do Backend */}
                     <div className="bg-purple-50 p-3 rounded-lg text-center border border-purple-200">
                       <div className="text-purple-800 font-medium text-sm">
-                        {currentEngagement.encouragement}
+                        {backendResult.sessionResults.pointsBreakdown.encouragement}
                       </div>
                     </div>
                   </div>
