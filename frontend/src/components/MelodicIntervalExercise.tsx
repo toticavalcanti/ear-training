@@ -193,10 +193,10 @@ class ProgressService {
 
 const progressService = new ProgressService();
 
-// ✅ FUNÇÃO DE DIFICULDADE AGORA USADA
+// ✅ FUNÇÃO DE DIFICULDADE ATUALIZADA PARA MÚLTIPLAS OITAVAS
 const getIntervalDifficulty = (semitones: number): number => {
   if (semitones <= 12) return 1; // Dentro de uma oitava = fácil
-  if (semitones <= 24) return 1.5; // Segunda oitava = médio
+  if (semitones <= 19) return 1.5; // Até décima segunda = médio
   return 2; // Mais que duas oitavas = difícil
 };
 
@@ -208,7 +208,7 @@ const formatPoints = (points: number): string => {
 };
 
 // =============================================
-// ✅ DEFINIÇÃO DOS INTERVALOS COM DIFICULDADE CALCULADA E MAIS INTERVALOS NO BEGINNER
+// ✅ DEFINIÇÃO DOS INTERVALOS COM MÚLTIPLAS OITAVAS E QUINTA AUMENTADA
 // =============================================
 const intervalsByDifficulty: Record<string, IntervalDefinition[]> = {
   beginner: [
@@ -223,6 +223,7 @@ const intervalsByDifficulty: Record<string, IntervalDefinition[]> = {
     { name: 'Oitava', semitones: 12, displayName: 'Oitava (12 semitons)', difficulty: getIntervalDifficulty(12) }
   ],
   intermediate: [
+    // Intervalos básicos (1ª oitava)
     { name: 'Segunda menor', semitones: 1, displayName: 'Segunda menor', difficulty: getIntervalDifficulty(1) },
     { name: 'Segunda maior', semitones: 2, displayName: 'Segunda maior', difficulty: getIntervalDifficulty(2) },
     { name: 'Terça menor', semitones: 3, displayName: 'Terça menor', difficulty: getIntervalDifficulty(3) },
@@ -230,13 +231,19 @@ const intervalsByDifficulty: Record<string, IntervalDefinition[]> = {
     { name: 'Quarta justa', semitones: 5, displayName: 'Quarta justa', difficulty: getIntervalDifficulty(5) },
     { name: 'Trítono', semitones: 6, displayName: 'Trítono', difficulty: getIntervalDifficulty(6) },
     { name: 'Quinta justa', semitones: 7, displayName: 'Quinta justa', difficulty: getIntervalDifficulty(7) },
-    { name: 'Sexta menor', semitones: 8, displayName: 'Sexta menor', difficulty: getIntervalDifficulty(8) },
+    { name: 'Quinta aumentada', semitones: 8, displayName: 'Quinta aumentada', difficulty: getIntervalDifficulty(8) },
     { name: 'Sexta maior', semitones: 9, displayName: 'Sexta maior', difficulty: getIntervalDifficulty(9) },
     { name: 'Sétima menor', semitones: 10, displayName: 'Sétima menor', difficulty: getIntervalDifficulty(10) },
     { name: 'Sétima maior', semitones: 11, displayName: 'Sétima maior', difficulty: getIntervalDifficulty(11) },
-    { name: 'Oitava', semitones: 12, displayName: 'Oitava', difficulty: getIntervalDifficulty(12) }
+    { name: 'Oitava', semitones: 12, displayName: 'Oitava', difficulty: getIntervalDifficulty(12) },
+    // Intervalos compostos (2ª oitava)
+    { name: 'Nona menor', semitones: 13, displayName: 'Nona menor', difficulty: getIntervalDifficulty(13) },
+    { name: 'Nona maior', semitones: 14, displayName: 'Nona maior', difficulty: getIntervalDifficulty(14) },
+    { name: 'Décima menor', semitones: 15, displayName: 'Décima menor', difficulty: getIntervalDifficulty(15) },
+    { name: 'Décima maior', semitones: 16, displayName: 'Décima maior', difficulty: getIntervalDifficulty(16) }
   ],
   advanced: [
+    // Intervalos básicos (1ª oitava) - COMPLETOS
     { name: 'Segunda menor', semitones: 1, displayName: 'Segunda menor', difficulty: getIntervalDifficulty(1) },
     { name: 'Segunda maior', semitones: 2, displayName: 'Segunda maior', difficulty: getIntervalDifficulty(2) },
     { name: 'Terça menor', semitones: 3, displayName: 'Terça menor', difficulty: getIntervalDifficulty(3) },
@@ -244,13 +251,30 @@ const intervalsByDifficulty: Record<string, IntervalDefinition[]> = {
     { name: 'Quarta justa', semitones: 5, displayName: 'Quarta justa', difficulty: getIntervalDifficulty(5) },
     { name: 'Trítono', semitones: 6, displayName: 'Trítono', difficulty: getIntervalDifficulty(6) },
     { name: 'Quinta justa', semitones: 7, displayName: 'Quinta justa', difficulty: getIntervalDifficulty(7) },
+    { name: 'Quinta aumentada', semitones: 8, displayName: 'Quinta aumentada', difficulty: getIntervalDifficulty(8) },
     { name: 'Sexta menor', semitones: 8, displayName: 'Sexta menor', difficulty: getIntervalDifficulty(8) },
     { name: 'Sexta maior', semitones: 9, displayName: 'Sexta maior', difficulty: getIntervalDifficulty(9) },
     { name: 'Sétima menor', semitones: 10, displayName: 'Sétima menor', difficulty: getIntervalDifficulty(10) },
     { name: 'Sétima maior', semitones: 11, displayName: 'Sétima maior', difficulty: getIntervalDifficulty(11) },
     { name: 'Oitava', semitones: 12, displayName: 'Oitava', difficulty: getIntervalDifficulty(12) },
+    // Intervalos compostos (2ª oitava) - COMPLETOS
     { name: 'Nona menor', semitones: 13, displayName: 'Nona menor ⭐', difficulty: getIntervalDifficulty(13) },
-    { name: 'Nona maior', semitones: 14, displayName: 'Nona maior ⭐', difficulty: getIntervalDifficulty(14) }
+    { name: 'Nona maior', semitones: 14, displayName: 'Nona maior ⭐', difficulty: getIntervalDifficulty(14) },
+    { name: 'Décima menor', semitones: 15, displayName: 'Décima menor ⭐', difficulty: getIntervalDifficulty(15) },
+    { name: 'Décima maior', semitones: 16, displayName: 'Décima maior ⭐', difficulty: getIntervalDifficulty(16) },
+    { name: 'Décima primeira', semitones: 17, displayName: 'Décima primeira ⭐', difficulty: getIntervalDifficulty(17) },
+    { name: 'Décima segunda aumentada', semitones: 18, displayName: 'Décima segunda aum. ⭐', difficulty: getIntervalDifficulty(18) },
+    { name: 'Décima segunda', semitones: 19, displayName: 'Décima segunda ⭐', difficulty: getIntervalDifficulty(19) },
+    { name: 'Décima terceira menor', semitones: 20, displayName: 'Décima terceira menor ⭐', difficulty: getIntervalDifficulty(20) },
+    { name: 'Décima terceira maior', semitones: 21, displayName: 'Décima terceira maior ⭐', difficulty: getIntervalDifficulty(21) },
+    { name: 'Décima quarta', semitones: 22, displayName: 'Décima quarta ⭐', difficulty: getIntervalDifficulty(22) },
+    { name: 'Décima quinta diminuta', semitones: 23, displayName: 'Décima quinta dim. ⭐', difficulty: getIntervalDifficulty(23) },
+    // Intervalos extremos (3ª oitava)
+    { name: 'Décima quinta', semitones: 24, displayName: 'Décima quinta ⭐⭐', difficulty: getIntervalDifficulty(24) },
+    { name: 'Décima sexta menor', semitones: 25, displayName: 'Décima sexta menor ⭐⭐', difficulty: getIntervalDifficulty(25) },
+    { name: 'Décima sexta maior', semitones: 26, displayName: 'Décima sexta maior ⭐⭐', difficulty: getIntervalDifficulty(26) },
+    { name: 'Décima sétima menor', semitones: 27, displayName: 'Décima sétima menor ⭐⭐', difficulty: getIntervalDifficulty(27) },
+    { name: 'Décima sétima maior', semitones: 28, displayName: 'Décima sétima maior ⭐⭐', difficulty: getIntervalDifficulty(28) }
   ]
 };
 
@@ -371,8 +395,11 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
       const lowerFreq = midiToFrequency(lowerNote);
       const upperFreq = midiToFrequency(upperNote);
 
-      // ✅ DECIDIR DIREÇÃO ALEATORIAMENTE (50/50)
-      const startWithLower = Math.random() < 0.5; // 50% chance cada direção
+      // ✅ GERAR NOVO RANDOM A CADA CHAMADA (50/50)
+      const randomValue = Math.random();
+      const startWithLower = randomValue < 0.5; 
+      
+      console.log(`🎲 Random value: ${randomValue.toFixed(3)} - Start with lower: ${startWithLower}`);
       
       // ✅ DETERMINAR ORDEM DE EXECUÇÃO
       const firstNote = startWithLower ? lowerName : upperName;
@@ -381,7 +408,8 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
       const secondFreq = startWithLower ? upperFreq : lowerFreq;
 
       const direction = startWithLower ? '↗️ Grave→Agudo' : '↘️ Agudo→Grave';
-      console.log(`🎵 Tocando intervalo ${direction}: ${firstNote} → ${secondNote} (${currentInterval.name}, dificuldade ${currentInterval.difficulty}x)`);
+      console.log(`🎵 Tocando intervalo ${direction}: ${firstNote} (${firstFreq.toFixed(1)}Hz) → ${secondNote} (${secondFreq.toFixed(1)}Hz)`);
+      console.log(`📊 Intervalo: ${currentInterval.name} (${currentInterval.semitones} semitons, dificuldade ${currentInterval.difficulty}x)`);
 
       const playNote = window.playPianoNote;
       const stopNote = window.stopPianoNote;
@@ -429,13 +457,28 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
     const randomIndex = Math.floor(Math.random() * availableIntervals.length);
     const randomInterval = availableIntervals[randomIndex];
     
-    // Calcular nota base válida
-    const maxBaseNote = Math.min(84, 72 - randomInterval.semitones);
-    const minBaseNote = Math.max(48, 36 + randomInterval.semitones);
+    // ✅ CALCULAR NOTA BASE VÁLIDA PARA INTERVALOS MAIORES
+    // Ajustar range baseado no tamanho do intervalo
+    let maxBaseNote, minBaseNote;
+    
+    if (randomInterval.semitones <= 12) {
+      // Intervalos simples (até 1 oitava)
+      maxBaseNote = Math.min(84, 72 - randomInterval.semitones);
+      minBaseNote = Math.max(36, 48 - randomInterval.semitones);
+    } else if (randomInterval.semitones <= 19) {
+      // Intervalos compostos (até 2 oitavas)
+      maxBaseNote = Math.min(72, 60 - (randomInterval.semitones - 12));
+      minBaseNote = Math.max(36, 48 - randomInterval.semitones);
+    } else {
+      // Intervalos extremos (3+ oitavas)
+      maxBaseNote = Math.min(60, 48);
+      minBaseNote = Math.max(36, 40);
+    }
+    
     const randomBaseNote = minBaseNote + Math.floor(Math.random() * (maxBaseNote - minBaseNote + 1));
 
     console.log(`🎯 Intervalo escolhido: ${randomInterval.name} (${randomInterval.semitones} semitons, dificuldade ${randomInterval.difficulty}x)`);
-    console.log(`🎹 Nota base: ${randomBaseNote} (${getNoteNameFromMidi(randomBaseNote)})`);
+    console.log(`🎹 Nota base: ${randomBaseNote} (${getNoteNameFromMidi(randomBaseNote)}) - Range: ${minBaseNote}-${maxBaseNote}`);
 
     setCurrentInterval(randomInterval);
     setBaseNote(randomBaseNote);
@@ -580,7 +623,13 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
                   {difficulty === 'beginner' ? 'Iniciante' : difficulty === 'intermediate' ? 'Intermediário' : 'Avançado'}
                 </span>
                 <span className="text-gray-600 text-xs text-center max-w-xs">
-                  Ouça duas notas em sequência
+                  Ouça duas notas em sequência (direção aleatória)
+                  <br />
+                  <span className="text-purple-600 font-medium">
+                    {difficulty === 'beginner' && `${availableIntervals.length} intervalos básicos`}
+                    {difficulty === 'intermediate' && `${availableIntervals.length} intervalos (até 2 oitavas)`}
+                    {difficulty === 'advanced' && `${availableIntervals.length} intervalos (até 3 oitavas)`}
+                  </span>
                 </span>
               </div>
             </div>
@@ -713,7 +762,11 @@ const MelodicIntervalExercise: React.FC<MelodicIntervalExerciseProps> = ({
                   <div className="mt-3 text-xs text-gray-500">
                     Dificuldade: {currentInterval.difficulty}x
                     {currentInterval.semitones > 12 && <span className="ml-2">⭐</span>}
+                    {currentInterval.semitones > 19 && <span className="ml-1">⭐</span>}
                     <span className="ml-2">• {currentInterval.semitones} semitons</span>
+                    {currentInterval.semitones > 12 && (
+                      <span className="ml-2 text-orange-600">• Múltiplas oitavas</span>
+                    )}
                     <span className="ml-2">• 🎲 Direção aleatória</span>
                   </div>
                 )}
