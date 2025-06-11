@@ -812,36 +812,34 @@ const HarmonicIntervalExercise: React.FC<HarmonicIntervalExerciseProps> = ({
           <div className="space-y-6">
             
             {/* Estatísticas */}
-            {intervalStats && (
-              <div className="bg-white rounded-xl shadow-sm p-6">
-                <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                  <span className="text-xl">📊</span>
-                  Estatísticas
-                </h3>
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                <span className="text-xl">📊</span>
+                Estatísticas
+              </h3>
+              
+              <div className="space-y-3">
+                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span className="text-sm text-gray-600">Total de Sessões</span>
+                  <span className="font-bold">{intervalStats?.totalSessions || 0}</span>
+                </div>
                 
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span className="text-sm text-gray-600">Total de Sessões</span>
-                    <span className="font-bold">{intervalStats.totalSessions}</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span className="text-sm text-gray-600">Precisão Média</span>
-                    <span className="font-bold">{intervalStats.averageAccuracy.toFixed(1)}%</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span className="text-sm text-gray-600">Melhor Sequência</span>
-                    <span className="font-bold">{intervalStats.bestStreak}</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center py-2">
-                    <span className="text-sm text-gray-600">XP Total</span>
-                    <span className="font-bold text-purple-600">{intervalStats.totalXpEarned}</span>
-                  </div>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span className="text-sm text-gray-600">Precisão Média</span>
+                  <span className="font-bold">{intervalStats?.averageAccuracy?.toFixed(1) || '0.0'}%</span>
+                </div>
+                
+                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span className="text-sm text-gray-600">Melhor Sequência</span>
+                  <span className="font-bold">{intervalStats?.bestStreak || 0}</span>
+                </div>
+                
+                <div className="flex justify-between items-center py-2">
+                  <span className="text-sm text-gray-600">XP Total</span>
+                  <span className="font-bold text-purple-600">{intervalStats?.totalXpEarned || 0}</span>
                 </div>
               </div>
-            )}
+            </div>
 
             {/* Feedback APENAS quando há resultado */}
             {showResult && (
