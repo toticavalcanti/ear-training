@@ -324,6 +324,55 @@ const HarmonicIntervalExercise: React.FC<HarmonicIntervalExerciseProps> = ({
     [difficulty]
   );
 
+  // ✅ NOVO: Detecção de inatividade para pausar timer - VERSÃO OTIMIZADA
+  useEffect(() => {
+    let pausedTime = 0;
+    let isPageActive = !document.hidden;
+    
+    const handleBlur = () => {
+      if (startTime > 0 && !showResult && pausedTime === 0) {
+        pausedTime = Date.now();
+        isPageActive = false;
+        console.log('⏸️ Timer pausado - usuário saiu da página');
+      }
+    };
+    
+    const handleFocus = () => {
+      if (pausedTime > 0 && startTime > 0) {
+        const pauseDuration = Date.now() - pausedTime;
+        if (pauseDuration > 2000) { // Tolerância reduzida para 2s
+          setStartTime(prev => {
+            const newStartTime = prev + pauseDuration;
+            console.log(`▶️ Timer retomado - compensando ${(pauseDuration/1000).toFixed(1)}s de inatividade`);
+            return newStartTime;
+          });
+        }
+        pausedTime = 0;
+        isPageActive = true;
+      }
+    };
+    
+    const handleVisibilityChange = () => {
+      if (document.hidden && isPageActive) {
+        handleBlur();
+      } else if (!document.hidden && !isPageActive) {
+        handleFocus();
+      }
+    };
+    
+    // Adicionar listeners
+    window.addEventListener('blur', handleBlur);
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [startTime, showResult]);
+
   // Buscar progresso inicial usando progressService
   useEffect(() => {
     const fetchProgress = async () => {
