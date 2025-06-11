@@ -2,10 +2,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ChordProgression } from '@/models/ChordProgression';
 import connectDB from '@/lib/mongodb';
+import { getUserFromToken } from '@/lib/auth-utils';
 
-// GET /api/progressions/stats
+// GET /api/progressions/stats - PROTEGIDO
 export async function GET(request: NextRequest) {
   try {
+    // ✅ PROTEÇÃO: Verificar autenticação
+    const userId = await getUserFromToken(request);
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Token inválido ou expirado' },
+        { status: 401 }
+      );
+    }
+
     await connectDB();
 
     const { searchParams } = new URL(request.url);
@@ -53,16 +63,35 @@ export async function GET(request: NextRequest) {
         success: true,
         data: {
           total: totalProgressions,
-          difficulty: quickStats[0].byDifficulty,
-          topCategories: quickStats[0].byCategory,
-          modes: quickStats[0].byMode,
+          difficulty: quickStats[0]?.byDifficulty || [],
+          topCategories: quickStats[0]?.byCategory || [],
+          modes: quickStats[0]?.byMode || [],
           summary: true
         }
       });
     }
 
-    // Estatísticas gerais
+    // Estatísticas completas
     const totalProgressions = await ChordProgression.countDocuments({ isActive: true });
+
+    if (totalProgressions === 0) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          overview: {
+            totalProgressions: 0,
+            lastUpdated: new Date().toISOString()
+          },
+          difficulty: { distribution: [], complexity: [] },
+          category: { distribution: [], byDifficulty: [] },
+          mode: { distribution: [] },
+          tempo: { stats: null },
+          timeSignature: { distribution: [] },
+          references: { top: [] },
+          recent: { progressions: [] }
+        }
+      });
+    }
 
     // Distribuição por dificuldade
     const difficultyStats = await ChordProgression.aggregate([
@@ -70,8 +99,7 @@ export async function GET(request: NextRequest) {
       {
         $group: {
           _id: '$difficulty',
-          count: { $sum: 1 },
-          percentile: { $sum: 1 }
+          count: { $sum: 1 }
         }
       },
       {
@@ -134,7 +162,7 @@ export async function GET(request: NextRequest) {
 
     // Estatísticas de tempo
     const tempoStats = await ChordProgression.aggregate([
-      { $match: { isActive: true, tempo: { $exists: true } } },
+      { $match: { isActive: true, tempo: { $exists: true, $ne: null } } },
       {
         $group: {
           _id: null,

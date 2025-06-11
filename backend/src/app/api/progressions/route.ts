@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ChordProgression } from '@/models/ChordProgression';
 import connectDB from '@/lib/mongodb';
+import { getUserFromToken } from '@/lib/auth-utils';
 
 // Interface para o filtro de busca
 interface FilterType {
@@ -16,9 +17,18 @@ interface FilterType {
   }>;
 }
 
-// GET /api/progressions
+// GET /api/progressions - PROTEGIDO
 export async function GET(request: NextRequest) {
   try {
+    // ✅ PROTEÇÃO: Verificar autenticação
+    const userId = await getUserFromToken(request);
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Token inválido ou expirado' },
+        { status: 401 }
+      );
+    }
+
     await connectDB();
 
     const { searchParams } = new URL(request.url);
@@ -30,8 +40,8 @@ export async function GET(request: NextRequest) {
     const isActive = searchParams.get('isActive');
     
     // Parâmetros de paginação
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10')));
     const skip = (page - 1) * limit;
 
     // Parâmetros de busca
@@ -41,6 +51,7 @@ export async function GET(request: NextRequest) {
     // Construir filtro
     const filter: FilterType = {};
     
+    // Validar dificuldade
     if (difficulty) {
       const validDifficulties = ['beginner', 'intermediate', 'advanced'];
       if (validDifficulties.includes(difficulty)) {
@@ -53,6 +64,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Validar categoria
     if (category) {
       const validCategories = ['pop', 'jazz', 'classical', 'bossa', 'modal', 'funk', 'rock', 'samba', 'mpb', 'blues'];
       if (validCategories.includes(category)) {
@@ -65,6 +77,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Validar modo
     if (mode) {
       const validModes = ['major', 'minor'];
       if (validModes.includes(mode)) {
@@ -77,6 +90,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Filtro isActive
     if (isActive !== null) {
       filter.isActive = isActive !== 'false';
     } else {
@@ -84,11 +98,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Busca por texto
-    if (search) {
+    if (search && search.trim()) {
+      const searchTerm = search.trim();
       filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-        { reference: { $regex: search, $options: 'i' } }
+        { name: { $regex: searchTerm, $options: 'i' } },
+        { description: { $regex: searchTerm, $options: 'i' } },
+        { reference: { $regex: searchTerm, $options: 'i' } }
       ];
     }
 
@@ -96,7 +111,7 @@ export async function GET(request: NextRequest) {
     if (random) {
       const randomProgressions = await ChordProgression.aggregate([
         { $match: filter },
-        { $sample: { size: limit } }
+        { $sample: { size: Math.min(limit, 50) } }
       ]);
 
       const total = await ChordProgression.countDocuments(filter);
@@ -125,15 +140,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Busca normal com paginação
-    const progressions = await ChordProgression
-      .find(filter)
-      .select('-__v')
-      .sort({ difficulty: 1, category: 1, name: 1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
+    const [progressions, total] = await Promise.all([
+      ChordProgression
+        .find(filter)
+        .select('-__v')
+        .sort({ difficulty: 1, category: 1, name: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      ChordProgression.countDocuments(filter)
+    ]);
 
-    const total = await ChordProgression.countDocuments(filter);
     const totalPages = Math.ceil(total / limit);
 
     return NextResponse.json({
@@ -167,14 +184,23 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/progressions - Para criar novas progressões
+// POST /api/progressions - PROTEGIDO
 export async function POST(request: NextRequest) {
   try {
+    // ✅ PROTEÇÃO: Verificar autenticação
+    const userId = await getUserFromToken(request);
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Token inválido ou expirado' },
+        { status: 401 }
+      );
+    }
+
     await connectDB();
 
     const body = await request.json();
     
-    // Validação básica
+    // Validação básica - campos obrigatórios
     const requiredFields = ['name', 'degrees', 'difficulty', 'category', 'mode', 'description'];
     for (const field of requiredFields) {
       if (!body[field]) {
@@ -183,6 +209,14 @@ export async function POST(request: NextRequest) {
           error: `Field '${field}' is required`
         }, { status: 400 });
       }
+    }
+
+    // Validar se degrees é um array não vazio
+    if (!Array.isArray(body.degrees) || body.degrees.length === 0) {
+      return NextResponse.json({
+        success: false,
+        error: 'degrees must be a non-empty array'
+      }, { status: 400 });
     }
 
     // Validar enums
@@ -212,7 +246,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar se já existe uma progressão com o mesmo nome
-    const existingProgression = await ChordProgression.findOne({ name: body.name });
+    const existingProgression = await ChordProgression.findOne({ 
+      name: body.name.trim(),
+      isActive: true 
+    });
+    
     if (existingProgression) {
       return NextResponse.json({
         success: false,
@@ -221,12 +259,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Criar nova progressão
-    const newProgression = new ChordProgression({
-      ...body,
+    const progressionData = {
+      name: body.name.trim(),
+      degrees: body.degrees,
+      difficulty: body.difficulty,
+      category: body.category,
+      mode: body.mode,
+      description: body.description.trim(),
+      reference: body.reference ? body.reference.trim() : undefined,
+      tempo: body.tempo || 120,
+      timeSignature: body.timeSignature || '4/4',
+      isActive: body.isActive !== undefined ? body.isActive : true,
       createdAt: new Date(),
       updatedAt: new Date()
-    });
+    };
 
+    const newProgression = new ChordProgression(progressionData);
     const savedProgression = await newProgression.save();
 
     return NextResponse.json({
@@ -239,6 +287,15 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ Error creating progression:', error);
+    
+    // Handle MongoDB duplicate key error
+    if (error instanceof Error && 'code' in error && error.code === 11000) {
+      return NextResponse.json({
+        success: false,
+        error: 'A progression with this name already exists'
+      }, { status: 409 });
+    }
+    
     return NextResponse.json({
       success: false,
       error: 'Internal server error'
