@@ -6,7 +6,9 @@
     "dev": "next dev -p 5000",
     "build": "next build",
     "start": "next start -p 5000",
-    "lint": "next lint"
+    "lint": "next lint",
+    "seed": "npx tsx src/scripts/seedDatabase.ts",
+    "seed:progressions": "npx tsx src/scripts/seedDatabase.ts"
   },
   "dependencies": {
     "@auth/mongodb-adapter": "^3.9.1",
