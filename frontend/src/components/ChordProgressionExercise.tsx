@@ -1,4 +1,4 @@
-// src/components/ChordProgressionExercise.tsx - VERSÃO LIMPA
+// src/components/ChordProgressionExercise.tsx - VERSÃO LIMPA CORRIGIDA
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -122,7 +122,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     return `${note}${octave}`;
   }, []);
 
-  // FUNÇÃO DE REPRODUÇÃO MELHORADA COM VOICE LEADING
+  // 🎹 FUNÇÃO DE REPRODUÇÃO HUMANIZADA (CORRIGIDA)
   const playProgression = useCallback(async () => {
     if (!currentProgression || !isPianoReady) {
       console.log('🎹 Piano ainda não está pronto ou progressão não definida');
@@ -130,10 +130,10 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     }
 
     setIsPlaying(true);
-    resetVoiceLeading(); // Reset para nova progressão
+    resetVoiceLeading();
 
     try {
-      console.log(`🎼 Tocando progressão: ${currentProgression.name}`);
+      console.log(`🎼 Tocando progressão HUMANIZADA: ${currentProgression.name}`);
       console.log(`🎵 Graus: ${currentProgression.degrees.join(' - ')}`);
       console.log(`⏱️ Tempo: ${playbackTempo} BPM`);
 
@@ -146,23 +146,47 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
         return;
       }
 
-      // Calcular duração baseada no tempo escolhido
-      const chordDuration = (60000 / playbackTempo) * 1.5; // 1.5 batidas por acorde
-      const pauseBetweenChords = Math.max(100, chordDuration * 0.1);
+      // 🎯 PARÂMETROS DE HUMANIZAÇÃO SUTIL
+      const chordDuration = (60000 / playbackTempo) * 1.5; // Duração total do acorde
+      const pauseBetweenChords = Math.max(50, chordDuration * 0.05); // Pausa mínima entre acordes
+      const noteOverlap = chordDuration * 0.92; // Notas duram 92% do tempo total (mais legato)
+      
+      // 🎭 HUMANIZAÇÃO SUTIL: Delays mais naturais
+      const getArpeggioDelays = (noteCount: number, direction: 'up' | 'down' = 'up'): number[] => {
+        const baseDelay = Math.max(3, Math.min(12, chordDuration / 50)); // 3-12ms (mais sutil)
+        const randomVariation = 1.2; // Variação mínima (0-1.2ms)
+        const delays: number[] = [];
+        
+        for (let i = 0; i < noteCount; i++) {
+          if (direction === 'up') {
+            // Grave → Agudo: crescimento natural mais suave
+            const naturalDelay = i * baseDelay * (0.85 + Math.random() * 0.3); // 85%-115%
+            delays.push(naturalDelay + Math.random() * randomVariation);
+          } else {
+            // Agudo → Grave: decrescimento natural
+            const naturalDelay = (noteCount - 1 - i) * baseDelay * (0.85 + Math.random() * 0.3);
+            delays.push(naturalDelay + Math.random() * randomVariation);
+          }
+        }
+        
+        return delays;
+      };
 
-      console.log(`⏱️ Duração por acorde: ${chordDuration.toFixed(0)}ms`);
+      console.log(`🎭 Humanização SUTIL ativa:`);
+      console.log(`   🎵 Duração por acorde: ${chordDuration.toFixed(0)}ms`);
+      console.log(`   🎶 Delays entre notas: 3-12ms (sutil)`);
+      console.log(`   🎹 Sobreposição: ${noteOverlap.toFixed(0)}ms (legato)`);
+      console.log(`   🎯 Direção: 92% ↗️ / 8% ↙️`);
 
-      // Gerar análise harmônica com voice leading otimizado
+      // Gerar análise harmônica com voice leading
       let analysis: HarmonicAnalysis[] = [];
       try {
         analysis = analyzeProgression(currentProgression.degrees);
         setHarmonicAnalysis(analysis);
       } catch (analysisError) {
         console.warn('⚠️ Erro na análise harmônica:', analysisError);
-        console.log('🎵 Usando reprodução simples sem voice leading...');
         
         // Fallback: reprodução simples sem voice leading
-        // Para cada grau, tocar um acorde básico
         const simpleFallback = currentProgression.degrees.map((degree, index) => ({
           symbol: degree,
           degree: degree,
@@ -180,51 +204,130 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
         return;
       }
 
-      // Tocar cada acorde com voice leading suave
-      for (let i = 0; i < analysis.length; i++) {
-        const chordAnalysis: HarmonicAnalysis = analysis[i];
-        const voicing: number[] = chordAnalysis.voicing || [60, 64, 67]; // Fallback para C maior
+      // 🎼 EXECUÇÃO HUMANIZADA ACORDE POR ACORDE
+      const globalActiveNotes: Set<string> = new Set(); // Controla todas as notas ativas
 
-        console.log(`🎵 Acorde ${i + 1}/${analysis.length}: ${chordAnalysis.symbol} (${chordAnalysis.degree})`);
+      for (let chordIndex = 0; chordIndex < analysis.length; chordIndex++) {
+        const chordAnalysis: HarmonicAnalysis = analysis[chordIndex];
+        const voicing: number[] = chordAnalysis.voicing || [60, 64, 67];
 
-        // Parar notas anteriores
-        voicing.forEach((midiNote: number) => {
-          try {
-            stopNote(getNoteNameFromMidi(midiNote));
-          } catch {}
-        });
+        console.log(`🎵 Acorde ${chordIndex + 1}/${analysis.length}: ${chordAnalysis.symbol}`);
 
-        // Pausa entre acordes
-        if (i > 0) {
+        // 🎭 HUMANIZAÇÃO SUTIL: Direção mais natural
+        const arpeggioDirection: 'up' | 'down' = Math.random() > 0.92 ? 'down' : 'up'; // 92% up, 8% down (mais natural)
+        
+        // Preparar notas ordenadas por direção
+        const orderedNotes = [...voicing]
+          .map(midi => ({
+            midi,
+            note: getNoteNameFromMidi(midi),
+            frequency: midiToFrequency(midi)
+          }))
+          .sort((a, b) => arpeggioDirection === 'up' ? a.midi - b.midi : b.midi - a.midi);
+
+        // Calcular delays do arpejo
+        const arpeggioDelays = getArpeggioDelays(orderedNotes.length, arpeggioDirection);
+
+        console.log(`🎭 Arpejo ${arpeggioDirection === 'up' ? '↗️ Grave→Agudo' : '↙️ Agudo→Grave'}: ${orderedNotes.map(n => n.note).join('→')}`);
+
+        // Pausa entre acordes (mas não no primeiro)
+        if (chordIndex > 0) {
           await new Promise<void>(resolve => setTimeout(resolve, pauseBetweenChords));
         }
 
-        // Tocar todas as notas do acorde com voice leading suave
-        const chordPromises = voicing.map((midiNote: number) => {
-          const note = getNoteNameFromMidi(midiNote);
-          const frequency = midiToFrequency(midiNote);
-          return playNote(note, frequency);
+        // 🎹 TOCAR ARPEJO HUMANIZADO
+        const notePromises: Promise<void>[] = [];
+
+        orderedNotes.forEach((noteInfo, noteIndex) => {
+          const delay = arpeggioDelays[noteIndex];
+          
+          const notePromise = new Promise<void>((resolve) => {
+            setTimeout(async () => {
+              try {
+                // ✅ TOCAR A NOTA
+                await playNote(noteInfo.note, noteInfo.frequency);
+                globalActiveNotes.add(noteInfo.note);
+                
+                console.log(`🎵 ▶️ ${noteInfo.note} (${noteInfo.midi}) delay: ${delay.toFixed(1)}ms`);
+                
+                // ⏰ PROGRAMAR PARADA DA NOTA (com overlap para sustentação)
+                setTimeout(() => {
+                  try {
+                    stopNote(noteInfo.note);
+                    globalActiveNotes.delete(noteInfo.note);
+                    console.log(`🎵 ⏹️ ${noteInfo.note} (parada automática)`);
+                  } catch (stopError) {
+                    console.warn(`⚠️ Erro ao parar ${noteInfo.note}:`, stopError);
+                  }
+                }, noteOverlap); // Sustenta por 85% do tempo do acorde
+                
+              } catch (playError) {
+                console.warn(`⚠️ Erro ao tocar ${noteInfo.note}:`, playError);
+              } finally {
+                resolve();
+              }
+            }, delay);
+          });
+          
+          notePromises.push(notePromise);
         });
 
-        await Promise.all(chordPromises);
+        // ⏳ AGUARDAR todas as notas do arpejo começarem
+        await Promise.all(notePromises);
 
-        // Duração do acorde
-        await new Promise<void>(resolve => setTimeout(resolve, chordDuration));
+        // ⏳ AGUARDAR duração total do acorde (considerando o último delay)
+        const totalArpeggioTime = Math.max(...arpeggioDelays);
+        const remainingTime = Math.max(0, chordDuration - totalArpeggioTime - pauseBetweenChords);
+        
+        if (remainingTime > 0) {
+          await new Promise<void>(resolve => setTimeout(resolve, remainingTime));
+        }
 
-        // Parar as notas do acorde atual
-        voicing.forEach((midiNote: number) => {
-          try {
-            stopNote(getNoteNameFromMidi(midiNote));
-          } catch {}
-        });
+        // 📊 LOG DO VOICE LEADING (para debug)
+        if (chordIndex < analysis.length - 1) {
+          const currentVoicing = voicing.map(getNoteNameFromMidi);
+          const nextVoicing = analysis[chordIndex + 1].voicing.map(getNoteNameFromMidi);
+          console.log(`🔄 Voice leading: ${currentVoicing.join('+')} → ${nextVoicing.join('+')}`);
+        }
       }
 
+      // 🧹 LIMPEZA FINAL: Parar todas as notas que ainda estão tocando
+      console.log(`🧹 Limpeza final: ${globalActiveNotes.size} notas ativas`);
+      globalActiveNotes.forEach(note => {
+        try {
+          stopNote(note);
+          console.log(`🎵 🧹 ${note} (limpeza final)`);
+        } catch (error) {
+          console.warn(`⚠️ Erro na limpeza final de ${note}:`, error);
+        }
+      });
+      globalActiveNotes.clear();
+
       setIsPlaying(false);
-      console.log('✅ Progressão concluída com voice leading suave');
+      console.log('✅ Progressão humanizada (sutil) concluída com arpejos naturais');
 
     } catch (err: unknown) {
-      console.error('❌ Erro ao tocar progressão:', err);
+      console.error('❌ Erro ao tocar progressão humanizada:', err);
       setIsPlaying(false);
+      
+      // 🚨 LIMPEZA DE EMERGÊNCIA
+      try {
+        console.log('🚨 Executando limpeza de emergência...');
+        // Parar todas as notas possíveis (C3 a C6)
+        for (let midi = 48; midi <= 84; midi++) {
+          try {
+            const note = getNoteNameFromMidi(midi);
+            if (window.stopPianoNote) {
+              window.stopPianoNote(note);
+            }
+          } catch {
+            // Ignorar erros individuais de limpeza
+          }
+        }
+        console.log('✅ Limpeza de emergência concluída');
+      } catch {
+        console.warn('⚠️ Erro na limpeza de emergência');
+      }
     }
   }, [currentProgression, getNoteNameFromMidi, midiToFrequency, isPianoReady, playbackTempo]);
 
@@ -593,7 +696,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                 Ouça progressões harmônicas e identifique pelo som
                 <br />
                 <span className="text-purple-600 font-medium">
-                  Voice leading otimizado • Cifras estilo Real Book
+                  🎭 Piano humanizado • Voice leading otimizado
                 </span>
               </div>
             </div>
@@ -637,6 +740,41 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                     </div>
                   </div>
                 )}
+
+                {/* 🎭 Status de Humanização Sutil */}
+                <div className="mb-4 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                  <h5 className="font-semibold text-purple-800 mb-2 flex items-center justify-center gap-2">
+                    <span className="text-lg">🎭</span>
+                    Piano Humanizado Sutil
+                  </h5>
+                  
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-purple-700">Arpejos:</span>
+                      <span className="font-bold text-green-600">92% ↗️ 8% ↙️</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-purple-700">Delay por nota:</span>
+                      <span className="font-bold text-purple-800">
+                        {Math.max(3, Math.min(12, (60000 / playbackTempo) / 50)).toFixed(0)}ms
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-purple-700">Sustentação:</span>
+                      <span className="font-bold text-purple-800">92%</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-purple-700">Voice leading:</span>
+                      <span className="font-bold text-green-600">Suave</span>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-2 text-center">
+                    <span className="text-xs text-purple-600 italic">
+                      🎼 Sutileza natural como pianista real
+                    </span>
+                  </div>
+                </div>
 
                 {/* Controle de Velocidade */}
                 <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
@@ -684,8 +822,8 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                 >
                   {isPlaying ? (
                     <div className="flex items-center justify-center gap-3">
-                      <div className="animate-pulse text-2xl">🎼</div>
-                      <span>Tocando progressão... ({playbackTempo} BPM)</span>
+                      <div className="animate-pulse text-2xl">🎭</div>
+                      <span>Tocando sutilmente... ({playbackTempo} BPM)</span>
                     </div>
                   ) : !isPianoReady ? (
                     <div className="flex items-center justify-center gap-3">
@@ -694,14 +832,14 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                     </div>
                   ) : (
                     <div className="flex items-center justify-center gap-3">
-                      <div className="text-3xl">🎼</div>
-                      <span>Tocar Progressão ({playbackTempo} BPM)</span>
+                      <div className="text-3xl">🎭</div>
+                      <span>Piano Humanizado Sutil ({playbackTempo} BPM)</span>
                     </div>
                   )}
                 </button>
                 
                 <p className="mt-4 text-gray-600 text-sm">
-                  Ouça a sequência de acordes com voice leading suave
+                  🎼 Arpejos sutis (3-12ms) e legato natural como pianista real
                 </p>
                 
                 {/* Info da progressão atual */}
@@ -713,7 +851,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                     <span className="mx-2">•</span>
                     <span>{currentProgression.timeSignature}</span>
                     <span className="mx-2">•</span>
-                    <span className="text-purple-600">Voice leading otimizado</span>
+                    <span className="text-purple-600">Piano sutil</span>
                   </div>
                 )}
               </div>
@@ -839,8 +977,8 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                   <span className="font-bold">{totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0}%</span>
                 </div>
                 <div className="flex justify-between items-center py-2">
-                  <span className="text-sm text-gray-600">Voice leading</span>
-                  <span className="font-bold text-green-600">Otimizado</span>
+                  <span className="text-sm text-gray-600">Piano humanizado</span>
+                  <span className="font-bold text-purple-600">Sutil</span>
                 </div>
               </div>
             </div>
