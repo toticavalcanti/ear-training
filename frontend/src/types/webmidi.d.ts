@@ -43,3 +43,12 @@ declare namespace WebMidi {
   interface Navigator {
     requestMIDIAccess(options?: WebMidi.MIDIOptions): Promise<WebMidi.MIDIAccess>;
   }
+
+  interface Window {
+  simplePiano: {
+    noteOn: (midiNote: number, velocity?: number, when?: number) => void;
+    noteOff: (midiNote: number, when?: number) => void;
+    stopAllNotes: () => void;
+    getContext: () => AudioContext | null;
+  };
+}

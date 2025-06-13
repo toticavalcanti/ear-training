@@ -1,231 +1,88 @@
-// src/components/VoiceLeadingSystem.ts
-// Este arquivo contém apenas a lógica pura de teoria musical, sem componentes React.
+// src/components/VoiceLeadingSystem.tsx - VERSÃO COM VOICE LEADING MELHORADO
 
-// Tipos para cifras padronizadas (estilo Real Book)
+// (As interfaces e o CHORD_SYMBOLS permanecem os mesmos da versão anterior)
 export interface ChordSymbol {
   root: string;
   quality: string;
   extensions: string[];
-  bass?: string;
-  display: string; // Como mostrar (ex: "Cm7", "F∆7", "G7alt")
+  display: string;
 }
-
-// Tipo para a análise de cada acorde da progressão
 export interface ChordAnalysis {
   degree: string;
   symbol: string;
   voicing: number[];
   analysis: string;
 }
-
-// Mapeamento de graus para cifras reais (em C)
 const CHORD_SYMBOLS: Record<string, ChordSymbol> = {
-  // === MAIOR ===
-  'I': { root: 'C', quality: 'major', extensions: [], display: 'C' },
-  'I^maj7': { root: 'C', quality: 'major7', extensions: [], display: 'C∆7' },
-  'I^maj9': { root: 'C', quality: 'major7', extensions: ['9'], display: 'C∆9' },
-  'I^maj7#11': { root: 'C', quality: 'major7', extensions: ['#11'], display: 'C∆7#11' },
-  'I^add9': { root: 'C', quality: 'major', extensions: ['add9'], display: 'Cadd9' },
-
-  // === MENORES ===
-  'ii': { root: 'D', quality: 'minor', extensions: [], display: 'Dm' },
-  'ii7': { root: 'D', quality: 'minor7', extensions: [], display: 'Dm7' },
-  'ii7b5': { root: 'D', quality: 'minor7b5', extensions: [], display: 'Dm7♭5' },
-  'ii9': { root: 'D', quality: 'minor7', extensions: ['9'], display: 'Dm9' },
-
-  'iii': { root: 'E', quality: 'minor', extensions: [], display: 'Em' },
-  'iii7': { root: 'E', quality: 'minor7', extensions: [], display: 'Em7' },
-
-  'vi': { root: 'A', quality: 'minor', extensions: [], display: 'Am' },
-  'vi7': { root: 'A', quality: 'minor7', extensions: [], display: 'Am7' },
-  'vi^add9': { root: 'A', quality: 'minor', extensions: ['add9'], display: 'Amadd9' },
-
-  // === DOMINANTES ===
-  'V': { root: 'G', quality: 'major', extensions: [], display: 'G' },
-  'V7': { root: 'G', quality: 'dominant7', extensions: [], display: 'G7' },
-  'V7sus4': { root: 'G', quality: 'dominant7sus4', extensions: [], display: 'G7sus4' },
-  'V7alt': { root: 'G', quality: 'dominant7', extensions: ['alt'], display: 'G7alt' },
-  'V7#9': { root: 'G', quality: 'dominant7', extensions: ['#9'], display: 'G7#9' },
-  'V7#11': { root: 'G', quality: 'dominant7', extensions: ['#11'], display: 'G7#11' },
-
-  // === SUBDOMINANTES ===
-  'IV': { root: 'F', quality: 'major', extensions: [], display: 'F' },
-  'IV^maj7': { root: 'F', quality: 'major7', extensions: [], display: 'F∆7' },
-  'iv': { root: 'F', quality: 'minor', extensions: [], display: 'Fm' },
-  'iv7': { root: 'F', quality: 'minor7', extensions: [], display: 'Fm7' },
-  'iv^add9': { root: 'F', quality: 'minor', extensions: ['add9'], display: 'Fmadd9' },
-
-  // === ACORDES EMPRESTADOS ===
-  'bVII': { root: 'B♭', quality: 'major', extensions: [], display: 'B♭' },
-  'bVII^maj7': { root: 'B♭', quality: 'major7', extensions: [], display: 'B♭∆7' },
-  'bVI': { root: 'A♭', quality: 'major', extensions: [], display: 'A♭' },
-  'bVI^maj7': { root: 'A♭', quality: 'major7', extensions: [], display: 'A♭∆7' },
-  'bIII': { root: 'E♭', quality: 'major', extensions: [], display: 'E♭' },
-  'bII': { root: 'D♭', quality: 'major', extensions: [], display: 'D♭' },
-  'bII^maj7': { root: 'D♭', quality: 'major7', extensions: [], display: 'D♭∆7' },
-
-  // === DOMINANTES SECUNDÁRIAS ===
-  'VI7': { root: 'A', quality: 'dominant7', extensions: [], display: 'A7' },
-  'III7': { root: 'E', quality: 'dominant7', extensions: [], display: 'E7' },
-  'bII7': { root: 'D♭', quality: 'dominant7', extensions: [], display: 'D♭7' }, // tritone sub
-
-  // === DIMINUTOS ===
-  'vii°': { root: 'B', quality: 'diminished', extensions: [], display: 'B°' },
-  'vii°7': { root: 'B', quality: 'diminished7', extensions: [], display: 'B°7' },
-  'bIII°7': { root: 'E♭', quality: 'diminished7', extensions: [], display: 'E♭°7' },
-
-  // === MENOR NATURAL ===
-  'i': { root: 'C', quality: 'minor', extensions: [], display: 'Cm' },
-  'i7': { root: 'C', quality: 'minor7', extensions: [], display: 'Cm7' },
-  'i^maj7': { root: 'C', quality: 'minorMaj7', extensions: [], display: 'Cm∆7' },
-  'i^add9': { root: 'C', quality: 'minor', extensions: ['add9'], display: 'Cmadd9' }
+  'I':{root:'C',quality:'major',extensions:[],display:'C'},'i':{root:'C',quality:'minor',extensions:[],display:'Cm'},'I^maj7':{root:'C',quality:'major7',extensions:[],display:'Cmaj7'},'IV':{root:'F',quality:'major',extensions:[],display:'F'},'iv':{root:'F',quality:'minor',extensions:[],display:'Fm'},'V':{root:'G',quality:'major',extensions:[],display:'G'},'V7':{root:'G',quality:'dominant',extensions:[],display:'G7'},'vi':{root:'A',quality:'minor',extensions:[],display:'Am'},'vi7':{root:'A',quality:'minor7',extensions:[],display:'Am7'},'ii7':{root:'D',quality:'minor7',extensions:[],display:'Dm7'},'iii7':{root:'E',quality:'minor7',extensions:[],display:'Em7'},'I7':{root:'C',quality:'dominant',extensions:[],display:'C7'},'IV7':{root:'F',quality:'dominant',extensions:[],display:'F7'},'IV^maj7':{root:'F',quality:'major7',extensions:[],display:'Fmaj7'},'VI7':{root:'A',quality:'dominant',extensions:[],display:'A7'},'i^add9':{root:'C',quality:'minor',extensions:['9'],display:'Cm(add9)'},'iv^add9':{root:'F',quality:'minor',extensions:['9'],display:'Fm(add9)'},'V7sus4':{root:'G',quality:'dominant',extensions:['sus4'],display:'G7sus4'},'bII^maj7':{root:'Db',quality:'major7',extensions:[],display:'Dbmaj7'},'bVII':{root:'Bb',quality:'major',extensions:[],display:'Bb'},'ii7b5':{root:'D',quality:'half-diminished',extensions:[],display:'Dm7(b5)'},'i^maj7':{root:'C',quality:'minor-major7',extensions:[],display:'Cm(maj7)'},'vii°7':{root:'B',quality:'diminished7',extensions:[],display:'Bdim7'},'bIII^maj7':{root:'Eb',quality:'major7',extensions:[],display:'Ebmaj7'},'bVI^maj7':{root:'Ab',quality:'major7',extensions:[],display:'Abmaj7'},'bVII^maj7':{root:'Bb',quality:'major7',extensions:[],display:'Bbmaj7'},'bIII°7':{root:'Eb',quality:'diminished7',extensions:[],display:'Ebdim7'},'III7':{root:'E',quality:'dominant',extensions:[],display:'E7'},'bII7':{root:'Db',quality:'dominant',extensions:[],display:'Db7'},'V7alt':{root:'G',quality:'dominant',extensions:['alt'],display:'G7alt'},'I^maj7#11':{root:'C',quality:'major7',extensions:['#11'],display:'Cmaj7(#11)'},'V7#9':{root:'G',quality:'dominant',extensions:['#9'],display:'G7(#9)'},'V7#11':{root:'G',quality:'dominant',extensions:['#11'],display:'G7(#11)'},
 };
 
-// Voice leading inteligente
+function getNotesForChord(symbol: ChordSymbol, octave: number = 4): number[] {
+  const rootMap: Record<string,number>={'C':0,'Db':1,'D':2,'Eb':3,'E':4,'F':5,'F#':6,'G':7,'Ab':8,'A':9,'Bb':10,'B':11};
+  const baseMidi = 12 * octave + rootMap[symbol.root];
+  const qualityIntervals: Record<string,number[]>={'major':[0,4,7],'minor':[0,3,7],'dominant':[0,4,7,10],'major7':[0,4,7,11],'minor7':[0,3,7,10],'minor-major7':[0,3,7,11],'diminished':[0,3,6],'diminished7':[0,3,6,9],'half-diminished':[0,3,6,10]};
+  const extensionIntervals: Record<string,number>={'9':14,'b9':13,'#9':15,'11':17,'#11':18,'13':21,'b13':20,'b5':6,'#5':8,'sus4':5};
+  const notes=new Set(qualityIntervals[symbol.quality]||qualityIntervals.major);
+  for(const ext of symbol.extensions){if(ext==='sus4'){notes.delete(3);notes.delete(4);notes.add(extensionIntervals.sus4)}else if(ext==='alt'){notes.add(extensionIntervals.b9);notes.add(extensionIntervals['#9']);notes.add(extensionIntervals['#5'])}else if(extensionIntervals[ext]){notes.add(extensionIntervals[ext])}}
+  return Array.from(notes).map(i=>baseMidi+i).sort((a,b)=>a-b)
+}
+
 class VoiceLeader {
-  private previousVoicing: number[] = [60, 64, 67]; // C major position
+  private previousVoicing: number[] | null = null;
+  private readonly idealCenter = 60; // Dó central (Middle C)
 
-  // Voicings otimizados para cada tipo de acorde
-  private getVoicings(chordSymbol: ChordSymbol): number[][] {
-    const voicings: Record<string, number[][]> = {
-      // Mapeamento de voicings... (o seu código original está ótimo aqui)
-      // === TRÍADES MAIORES ===
-      'C': [[48, 60, 64, 67], [48, 64, 67, 72], [48, 67, 72, 76]],
-      'F': [[53, 65, 69, 72], [53, 69, 72, 77], [53, 72, 77, 81]],
-      'G': [[55, 67, 71, 74], [55, 71, 74, 79], [55, 74, 79, 83]],
-      // === ACORDES DE SÉTIMA MAIOR ===
-      'C∆7': [[48, 60, 64, 67, 71], [48, 64, 71, 72, 76], [48, 67, 71, 72, 76]],
-      'F∆7': [[53, 65, 69, 72, 76], [53, 69, 76, 77, 81], [53, 72, 76, 77, 81]],
-      // === ACORDES MENORES ===
-      'Dm': [[50, 62, 65, 69], [50, 65, 69, 74], [50, 69, 74, 77]],
-      'Dm7': [[50, 62, 65, 69, 72], [50, 65, 72, 74, 77], [50, 69, 72, 74, 77]],
-      'Am': [[57, 69, 72, 76], [57, 72, 76, 81], [57, 76, 81, 84]],
-      'Am7': [[57, 69, 72, 76, 79], [57, 72, 79, 81, 84], [57, 76, 79, 81, 84]],
-      // === DOMINANTES ===
-      'G7': [[55, 67, 71, 74, 77], [55, 71, 77, 79, 83], [55, 74, 77, 79, 83]],
-      'G7sus4': [[55, 67, 72, 74, 77], [55, 72, 77, 79, 84]],
-      'G7alt': [[55, 71, 75, 77, 81], [55, 75, 81, 83, 87]]
-    };
-
-    const result = voicings[chordSymbol.display];
-    if (!result || !Array.isArray(result) || result.length === 0) {
-      // Fallback para acordes não mapeados
-      return [[48, 60, 64, 67]];
+  public findBestVoicing(currentNotes: number[]): number[] {
+    if (!this.previousVoicing) {
+      this.previousVoicing = currentNotes;
+      return currentNotes;
     }
-    return result;
-  }
+    let bestVoicing = currentNotes;
+    let minScore = Infinity;
 
-  // Escolher melhor voicing baseado na condução de vozes
-  public getBestVoicing(chordSymbol: ChordSymbol): number[] {
-    const availableVoicings = this.getVoicings(chordSymbol);
+    // Gera e testa inversões em diferentes oitavas para encontrar a mais adequada
+    for (let oct = -1; oct <= 1; oct++) {
+      for (let i = 0; i < currentNotes.length; i++) {
+        const inversion = this.invert(currentNotes, i).map(n => n + (12 * oct));
+        
+        // CORREÇÃO: O score agora considera a distância e a proximidade do centro do piano
+        const distance = this.calculateDistance(this.previousVoicing, inversion);
+        const centering = Math.abs(this.getAverageMidi(inversion) - this.idealCenter);
+        const score = distance + centering * 0.5; // Pondera a distância e a centralização
 
-    if (availableVoicings.length === 0) {
-      return [48, 60, 64, 67]; // fallback
-    }
-
-    let bestVoicing = availableVoicings[0];
-    let smallestMovement = Infinity;
-
-    // Calcular menor movimento das vozes superiores (ignora o baixo)
-    for (const voicing of availableVoicings) {
-      if (!Array.isArray(voicing) || voicing.length === 0) continue;
-
-      const upperVoices = voicing.slice(1); // Ignora o baixo
-      const prevUpperVoices = this.previousVoicing.slice(1);
-
-      let totalMovement = 0;
-      const minLength = Math.min(upperVoices.length, prevUpperVoices.length);
-
-      for (let i = 0; i < minLength; i++) {
-        const current = upperVoices[i];
-        const previous = prevUpperVoices[i];
-        if (typeof current === 'number' && typeof previous === 'number') {
-          totalMovement += Math.abs(current - previous);
+        if (score < minScore) {
+          minScore = score;
+          bestVoicing = inversion;
         }
       }
-
-      if (totalMovement < smallestMovement) {
-        smallestMovement = totalMovement;
-        bestVoicing = voicing;
-      }
     }
-
     this.previousVoicing = bestVoicing;
     return bestVoicing;
   }
-
-  // Reset para nova progressão
-  public reset() {
-    this.previousVoicing = [48, 60, 64, 67]; // C major com baixo
+  private getAverageMidi(notes: number[]): number {
+    return notes.reduce((a, b) => a + b, 0) / notes.length;
   }
+  private invert(notes: number[], inversionCount: number): number[] {
+    const newNotes=[...notes];for(let i=0;i<inversionCount;i++){if(newNotes.length>0)newNotes.push(newNotes.shift()!+12)}return newNotes
+  }
+  private calculateDistance(prev:number[],current:number[]):number{let d=0;for(let i=0;i<Math.min(prev.length,current.length);i++){d+=Math.abs(prev[i]-current[i])}return d}
+  public reset(){this.previousVoicing=null}
 }
 
-// Instância global do voice leader
 const voiceLeader = new VoiceLeader();
+export function resetVoiceLeading() { voiceLeader.reset(); }
 
-// Função para converter grau em cifra formatada
-export function formatChordSymbol(degree: string): string {
-  if (typeof degree !== 'string') {
-    console.warn('Grau inválido para formatChordSymbol:', degree);
-    return 'C';
-  }
-
-  const symbol = CHORD_SYMBOLS[degree];
-  if (!symbol || !symbol.display) {
-    console.warn('Símbolo não encontrado para:', degree);
-    return degree;
-  }
-
-  return symbol.display;
-}
-
-// Função para obter voicing otimizado
-export function getOptimizedVoicing(degree: string): number[] {
-  if (typeof degree !== 'string') {
-    console.warn('Grau inválido para getOptimizedVoicing:', degree);
-    return [48, 60, 64, 67];
-  }
-
-  const symbol = CHORD_SYMBOLS[degree];
-  if (!symbol) {
-    console.warn('Voicing não encontrado para:', degree);
-    return [48, 60, 64, 67];
-  }
-
-  return voiceLeader.getBestVoicing(symbol);
-}
-
-// Resetar voice leading para nova progressão
-export function resetVoiceLeading() {
-  voiceLeader.reset();
-}
-
-// Função para analisar progressão e gerar cifras bonitas
 export function analyzeProgression(degrees: string[]): ChordAnalysis[] {
   resetVoiceLeading();
-
-  return degrees.map((degree): ChordAnalysis => {
-    if (typeof degree !== 'string') {
-      console.warn('Grau inválido:', degree);
-      return { degree: 'I', symbol: 'C', voicing: [48, 60, 64, 67], analysis: 'Desconhecido' };
-    }
-
-    const symbol = formatChordSymbol(degree);
-    const voicing = getOptimizedVoicing(degree);
-
-    let analysis = 'Outros';
-    if (degree.includes('V7') || degree.includes('V')) {
-      analysis = 'Dominante';
-    } else if (degree.includes('ii') || degree.includes('II')) {
-      analysis = 'Predominante';
-    } else if (degree.startsWith('I') || degree.startsWith('i')) {
-      analysis = 'Tônica';
-    } else if (degree.includes('vi') || degree.includes('VI')) {
-      analysis = 'Relativo menor';
-    } else if (degree.includes('IV') || degree.includes('iv')) {
-      analysis = 'Subdominante';
-    }
-
-    return { degree, symbol, voicing, analysis };
+  return degrees.map((degree: string): ChordAnalysis => {
+    const symbolInfo = CHORD_SYMBOLS[degree] || { root: 'C', quality: 'major', extensions: [], display: '?' };
+    const notes = getNotesForChord(symbolInfo);
+    const voicing = voiceLeader.findBestVoicing(notes);
+    let analysis='Tônica';if(degree.includes('V'))analysis='Dominante';if(degree.includes('IV')||degree.includes('ii'))analysis='Subdominante';if(degree.includes('vi'))analysis='Relativo Menor';
+    return { degree, symbol: symbolInfo.display, voicing, analysis };
   });
+}
+
+export function formatChordSymbol(degree: string): string {
+  const symbol = CHORD_SYMBOLS[degree];
+  return symbol ? symbol.display : degree;
 }

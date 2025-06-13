@@ -1,20 +1,20 @@
 // src/app/api/progress/update/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
-import Progress, { IExerciseStats, IBadge, IProgress } from '@/models/Progress';
+import Progress, { IExerciseStats, IBadge, IProgress, IExerciseSession } from '@/models/Progress';
 import { getUserFromToken } from '@/lib/auth-utils';
+import { getLevelFromXp, getXpForNextLevel } from '@/lib/levelUtils';
 import { Document } from 'mongoose';
 
 interface SessionData {
-  exerciseType: string;
-  difficulty: string;
+  exerciseType: 'melodic-intervals' | 'harmonic-intervals' | 'chord-progressions' | 'rhythmic-patterns';
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
   totalQuestions: number;
   correctAnswers: number;
   timeSpent: number;
   averageResponseTime: number;
 }
 
-// Tipo do documento Progress do Mongoose
 type ProgressDocument = Document & IProgress;
 
 interface BadgeDefinition {
@@ -24,7 +24,6 @@ interface BadgeDefinition {
   icon: string;
 }
 
-// Sistema de badges predefinido
 const AVAILABLE_BADGES: Record<string, BadgeDefinition> = {
   'first-exercise': {
     id: 'first-exercise',
@@ -35,7 +34,7 @@ const AVAILABLE_BADGES: Record<string, BadgeDefinition> = {
   'perfect-session': {
     id: 'perfect-session',
     name: 'Perfeição',
-    description: 'Acerte 100% em uma sessão',
+    description: 'Acerte 100% em uma sessão com 5+ questões',
     icon: '💯',
   },
   'streak-5': {
@@ -64,35 +63,6 @@ const AVAILABLE_BADGES: Record<string, BadgeDefinition> = {
   },
 };
 
-function calculateLevel(totalXp: number): { currentLevel: number; xpForNextLevel: number } {
-  // Progressão: Level 1 = 0, Level 2 = 100, Level 3 = 300, Level 4 = 600, etc.
-  // Fórmula: XP necessário = (level - 1) * 100 + (level - 1) * (level - 2) * 50
-  
-  let currentLevel = 1;
-  let xpForCurrentLevel = 0;
-  
-  while (true) {
-    const xpForNextLevel = currentLevel === 1 ? 100 : 
-      xpForCurrentLevel + (currentLevel * 100) + ((currentLevel - 1) * 50);
-    
-    if (totalXp < xpForNextLevel) {
-      return {
-        currentLevel,
-        xpForNextLevel: xpForNextLevel - totalXp
-      };
-    }
-    
-    xpForCurrentLevel = xpForNextLevel;
-    currentLevel++;
-    
-    // Limite máximo para evitar loop infinito
-    if (currentLevel > 100) {
-      return { currentLevel: 100, xpForNextLevel: 0 };
-    }
-  }
-}
-
-// ✅ NOVA FUNÇÃO UNIFICADA DE PONTUAÇÃO ENGAJANTE
 function calculateEngagementPoints(
   correctAnswers: number,
   totalQuestions: number,
@@ -116,7 +86,6 @@ function calculateEngagementPoints(
 } {
   const accuracy = correctAnswers / totalQuestions;
   
-  // Multiplicador base por dificuldade
   const difficultyMultipliers: Record<string, number> = {
     beginner: 1,
     intermediate: 1.5,
@@ -124,35 +93,27 @@ function calculateEngagementPoints(
   };
   const difficultyMultiplier = difficultyMultipliers[difficulty] || 1;
   
-  // ✅ 1. PONTOS BASE - Todos sempre ganham algo
   const basePoints = Math.round(20 * difficultyMultiplier);
   
-  // ✅ 2. BONUS DE CORREÇÃO - Não é tudo ou nada
   let correctnessBonus = 0;
   if (accuracy === 1) {
     correctnessBonus = Math.round(30 * difficultyMultiplier);
   } else if (accuracy > 0) {
-    // Ainda ganha alguma coisa por tentar
     correctnessBonus = Math.round(5 * difficultyMultiplier);
   }
   
-  // ✅ 3. BONUS DE REFLEXÃO - Encoraja análise cuidadosa
   let thoughtfulnessBonus = 0;
-  const idealTime = 8; // 8 segundos = tempo ideal para análise
+  const idealTime = 8;
   
   if (averageResponseTime < 3) {
-    // Muito rápido = provável chute = 0 bonus
     thoughtfulnessBonus = 0;
   } else if (averageResponseTime >= 3 && averageResponseTime <= 15) {
-    // Tempo bom de análise = MÁXIMO bonus
     const timeRatio = Math.min(1, averageResponseTime / idealTime);
     thoughtfulnessBonus = Math.round(15 * difficultyMultiplier * timeRatio);
   } else {
-    // Tempo excessivo, mas ainda positivo
     thoughtfulnessBonus = Math.round(5 * difficultyMultiplier);
   }
   
-  // ✅ 4. BONUS DE MELHORIA - Recompensa progresso
   let improvementBonus = 0;
   if (recentSessions.length >= 3) {
     const recent = recentSessions.slice(-3);
@@ -166,23 +127,18 @@ function calculateEngagementPoints(
     }
   }
   
-  // ✅ 5. BONUS DE PARTICIPAÇÃO - Encoraja prática
   const participationBonus = Math.round(10 * difficultyMultiplier);
   
-  // ✅ 6. BONUS DE RECUPERAÇÃO - Recovery mechanics
   let recoveryBonus = 0;
   if (accuracy < 1 && consecutiveErrors >= 2) {
-    // Após 2+ erros, próxima tentativa vale mais
     recoveryBonus = Math.round(15 * difficultyMultiplier);
   } else if (accuracy === 1 && consecutiveErrors >= 1) {
-    // Acertou após erro(s) - Grande recompensa!
     recoveryBonus = Math.round(25 * difficultyMultiplier * Math.min(consecutiveErrors, 3));
   }
   
   const totalPoints = basePoints + correctnessBonus + thoughtfulnessBonus + 
                      improvementBonus + participationBonus + recoveryBonus;
   
-  // ✅ 7. MENSAGEM DE ENCORAJAMENTO
   let encouragement = '';
   if (accuracy === 1) {
     const excellentReasons = [];
@@ -190,21 +146,16 @@ function calculateEngagementPoints(
     if (recoveryBonus > 0) excellentReasons.push('recuperação');
     if (improvementBonus > 0) excellentReasons.push('melhoria consistente');
     
-    if (excellentReasons.length > 0) {
-      encouragement = `Excelente! Destaque em: ${excellentReasons.join(', ')}`;
-    } else {
-      encouragement = 'Muito bem! Continue assim!';
-    }
+    encouragement = excellentReasons.length > 0
+      ? `Excelente! Destaque em: ${excellentReasons.join(', ')}`
+      : 'Muito bem! Continue assim!';
   } else {
-    if (averageResponseTime >= 5) {
-      encouragement = 'Boa análise! A prática leva à perfeição 🎯';
-    } else {
-      encouragement = 'Tente ouvir novamente e analise com calma 🎵';
-    }
+    encouragement = averageResponseTime >= 5
+      ? 'Boa análise! A prática leva à perfeição 🎯'
+      : 'Tente ouvir novamente e analise com calma 🎵';
   }
   
-  // ✅ XP baseado em engajamento, não apenas precisão
-  const engagementFactor = (thoughtfulnessBonus > 0 ? 1.2 : 0.8); // Bonus por reflexão
+  const engagementFactor = (thoughtfulnessBonus > 0 ? 1.2 : 0.8);
   const xp = Math.round(totalPoints * (0.3 + accuracy * 0.4) * engagementFactor);
   
   return {
@@ -223,12 +174,10 @@ function calculateEngagementPoints(
   };
 }
 
-// ✅ FUNÇÃO AUXILIAR PARA CALCULAR ERROS CONSECUTIVOS
 function calculateConsecutiveErrors(recentSessions: Array<{correctAnswers: number, totalQuestions: number}>): number {
   let consecutive = 0;
   for (let i = recentSessions.length - 1; i >= 0; i--) {
-    const session = recentSessions[i];
-    if (session.correctAnswers < session.totalQuestions) {
+    if (recentSessions[i].correctAnswers < recentSessions[i].totalQuestions) {
       consecutive++;
     } else {
       break;
@@ -241,19 +190,16 @@ function checkForNewBadges(progress: ProgressDocument, sessionData: SessionData)
   const newBadges: string[] = [];
   const existingBadgeIds = progress.badges.map((b: IBadge) => b.id);
   
-  // Primeiro exercício
-  if (!existingBadgeIds.includes('first-exercise') && progress.totalExercises === 0) {
+  if (!existingBadgeIds.includes('first-exercise') && progress.totalExercises === 1) {
     newBadges.push('first-exercise');
   }
   
-  // Sessão perfeita
   if (!existingBadgeIds.includes('perfect-session') && 
       sessionData.correctAnswers === sessionData.totalQuestions && 
       sessionData.totalQuestions >= 5) {
     newBadges.push('perfect-session');
   }
   
-  // Streaks
   if (!existingBadgeIds.includes('streak-5') && progress.currentGlobalStreak >= 5) {
     newBadges.push('streak-5');
   }
@@ -262,12 +208,10 @@ function checkForNewBadges(progress: ProgressDocument, sessionData: SessionData)
     newBadges.push('streak-10');
   }
   
-  // Nível 5
   if (!existingBadgeIds.includes('level-5') && progress.currentLevel >= 5) {
     newBadges.push('level-5');
   }
   
-  // Mestre dos intervalos
   const intervalStats = progress.exerciseStats.find((stat: IExerciseStats) => 
     stat.exerciseType === 'melodic-intervals' || stat.exerciseType === 'harmonic-intervals'
   );
@@ -292,7 +236,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    const body: SessionData = await request.json();
     const {
       exerciseType,
       difficulty,
@@ -302,39 +246,24 @@ export async function POST(request: NextRequest) {
       averageResponseTime,
     } = body;
 
-    // Validação dos dados
-    if (!exerciseType || !difficulty || !totalQuestions || correctAnswers === undefined) {
+    if (!exerciseType || !difficulty || totalQuestions === undefined || correctAnswers === undefined) {
       return NextResponse.json(
         { message: 'Dados incompletos da sessão' },
         { status: 400 }
       );
     }
 
-    // Buscar progresso existente
     let progress = await Progress.findOne({ userId }) as ProgressDocument | null;
     
     if (!progress) {
-      // ✅ CRIAR PROGRESSO COM TODOS OS CAMPOS INICIALIZADOS
       progress = new Progress({ 
-        userId,
-        totalXp: 0,
-        currentLevel: 1,
-        totalPoints: 0,
-        totalExercises: 0,
-        totalCorrectAnswers: 0,
-        overallAccuracy: 0,
-        currentGlobalStreak: 0,
-        bestGlobalStreak: 0,
-        lastActiveDate: new Date(),
-        exerciseStats: [],
-        recentSessions: [],
-        badges: [],
-        createdAt: new Date(),
-        updatedAt: new Date()
+        userId, totalXp: 0, currentLevel: 1, totalPoints: 0, totalExercises: 0,
+        totalCorrectAnswers: 0, overallAccuracy: 0, currentGlobalStreak: 0,
+        bestGlobalStreak: 0, lastActiveDate: new Date(), exerciseStats: [],
+        recentSessions: [], badges: [], createdAt: new Date(), updatedAt: new Date()
       }) as ProgressDocument;
     }
 
-    // ✅ USAR NOVA FUNÇÃO DE PONTUAÇÃO ENGAJANTE
     const consecutiveErrors = calculateConsecutiveErrors(
       progress.recentSessions.slice(-5).map(s => ({
         correctAnswers: s.correctAnswers,
@@ -343,10 +272,7 @@ export async function POST(request: NextRequest) {
     );
 
     const scoringResult = calculateEngagementPoints(
-      correctAnswers,
-      totalQuestions,
-      difficulty,
-      averageResponseTime,
+      correctAnswers, totalQuestions, difficulty, averageResponseTime,
       progress.recentSessions.slice(-10).map(s => ({
         correctAnswers: s.correctAnswers,
         totalQuestions: s.totalQuestions,
@@ -359,30 +285,16 @@ export async function POST(request: NextRequest) {
     const xp = scoringResult.xp;
     const accuracy = correctAnswers / totalQuestions;
 
-    // Criar dados da sessão
-    const sessionData: SessionData = {
-      exerciseType,
-      difficulty,
-      totalQuestions,
-      correctAnswers,
-      timeSpent,
-      averageResponseTime,
-    };
-
-    // Atualizar estatísticas gerais
     const oldLevel = progress.currentLevel;
     progress.totalXp += xp;
     progress.totalPoints += points;
     progress.totalExercises += 1;
     progress.totalCorrectAnswers += correctAnswers;
     
-    // ✅ CALCULAR NOVO NÍVEL BASEADO NO XP
-    const levelInfo = calculateLevel(progress.totalXp);
-    progress.currentLevel = levelInfo.currentLevel;
-    // Não salvamos xpForNextLevel no banco - calculamos dinamicamente
+    progress.currentLevel = getLevelFromXp(progress.totalXp);
+    const levelUp = progress.currentLevel > oldLevel;
 
-    // Atualizar streak global
-    if (accuracy >= 0.8) { // 80% ou mais para manter streak
+    if (accuracy >= 0.8) {
       progress.currentGlobalStreak += 1;
       progress.bestGlobalStreak = Math.max(progress.bestGlobalStreak, progress.currentGlobalStreak);
     } else {
@@ -392,29 +304,19 @@ export async function POST(request: NextRequest) {
     progress.lastActiveDate = new Date();
     progress.updatedAt = new Date();
 
-    // Atualizar estatísticas do exercício específico
-    let exerciseStat = progress.exerciseStats.find((stat: IExerciseStats) => stat.exerciseType === exerciseType);
-    
+    let exerciseStat: IExerciseStats | undefined = progress.exerciseStats.find((stat) => stat.exerciseType === exerciseType);
     if (!exerciseStat) {
       const newExerciseStat: IExerciseStats = {
-        exerciseType: exerciseType as 'melodic-intervals' | 'harmonic-intervals' | 'chord-progressions' | 'rhythmic-patterns',
-        totalSessions: 0,
-        totalQuestions: 0,
-        totalCorrect: 0,
-        bestAccuracy: 0,
-        averageAccuracy: 0,
-        totalTimeSpent: 0,
-        totalPointsEarned: 0,
-        totalXpEarned: 0,
-        currentStreak: 0,
-        bestStreak: 0,
-        lastPlayed: new Date(),
+        exerciseType: exerciseType,
+        totalSessions: 0, totalQuestions: 0, totalCorrect: 0,
+        bestAccuracy: 0, averageAccuracy: 0, totalTimeSpent: 0,
+        totalPointsEarned: 0, totalXpEarned: 0, currentStreak: 0,
+        bestStreak: 0, lastPlayed: new Date(),
       };
       progress.exerciseStats.push(newExerciseStat);
       exerciseStat = newExerciseStat;
     }
-
-    // Atualizar estatísticas específicas
+    
     exerciseStat.totalSessions += 1;
     exerciseStat.totalQuestions += totalQuestions;
     exerciseStat.totalCorrect += correctAnswers;
@@ -424,8 +326,7 @@ export async function POST(request: NextRequest) {
     exerciseStat.totalPointsEarned += points;
     exerciseStat.totalXpEarned += xp;
     exerciseStat.lastPlayed = new Date();
-
-    // Atualizar streak do exercício
+    
     if (accuracy >= 0.8) {
       exerciseStat.currentStreak += 1;
       exerciseStat.bestStreak = Math.max(exerciseStat.bestStreak, exerciseStat.currentStreak);
@@ -433,76 +334,49 @@ export async function POST(request: NextRequest) {
       exerciseStat.currentStreak = 0;
     }
 
-    // Adicionar sessão ao histórico (manter apenas as últimas 50)
-    progress.recentSessions.unshift({
-      exerciseType: exerciseType as 'melodic-intervals' | 'harmonic-intervals' | 'chord-progressions' | 'rhythmic-patterns',
-      difficulty: difficulty as 'beginner' | 'intermediate' | 'advanced',
-      totalQuestions,
-      correctAnswers,
-      timeSpent,
-      averageResponseTime,
-      pointsEarned: points,
-      xpEarned: xp,
-      completedAt: new Date(),
-    });
+    const sessionEntry: IExerciseSession = {
+      exerciseType, difficulty, totalQuestions, correctAnswers,
+      timeSpent, averageResponseTime, pointsEarned: points,
+      xpEarned: xp, completedAt: new Date(),
+    };
+    progress.recentSessions.unshift(sessionEntry);
     if (progress.recentSessions.length > 50) {
       progress.recentSessions = progress.recentSessions.slice(0, 50);
     }
 
-    // Verificar novas conquistas
-    const newBadgeIds = checkForNewBadges(progress, sessionData);
+    const newBadgeIds = checkForNewBadges(progress, body);
     const newBadges = newBadgeIds.map(badgeId => ({
       ...AVAILABLE_BADGES[badgeId],
       unlockedAt: new Date(),
     }));
     
-    progress.badges.push(...newBadges);
+    if (newBadges.length > 0) {
+        progress.badges.push(...newBadges);
+    }
 
-    // ✅ CALCULAR PRECISÃO GERAL APÓS ATUALIZAR TODAS AS ESTATÍSTICAS
-    // Usar APENAS dados dos exerciseStats para evitar inconsistências
-    const totalQuestionsAllExercises = progress.exerciseStats.reduce((sum: number, stat: IExerciseStats) => sum + stat.totalQuestions, 0);
-    const totalCorrectAllExercises = progress.exerciseStats.reduce((sum: number, stat: IExerciseStats) => sum + stat.totalCorrect, 0);
-    
-    progress.overallAccuracy = totalQuestionsAllExercises > 0 ? 
-      (totalCorrectAllExercises / totalQuestionsAllExercises) * 100 : 0;
-
-    // Garantir que não exceda 100%
+    const totalQuestionsAll = progress.exerciseStats.reduce((sum, stat) => sum + stat.totalQuestions, 0);
+    const totalCorrectAll = progress.exerciseStats.reduce((sum, stat) => sum + stat.totalCorrect, 0);
+    progress.overallAccuracy = totalQuestionsAll > 0 ? (totalCorrectAll / totalQuestionsAll) * 100 : 0;
     progress.overallAccuracy = Math.min(progress.overallAccuracy, 100);
 
-    // Salvar progresso atualizado
     await progress.save();
 
-    console.log(`✅ Sistema unificado - Progresso atualizado para usuário ${userId}:`, {
-      points,
-      xp,
-      accuracy: Math.round(accuracy * 100) + '%',
-      oldLevel,
-      newLevel: progress.currentLevel,
-      levelUp: progress.currentLevel > oldLevel,
-      newBadges: newBadgeIds,
-      breakdown: scoringResult.breakdown,
-      systemType: 'Unified Engagement System'
-    });
-
-    // ✅ RESPOSTA COM BREAKDOWN DETALHADO
-    // Calcular xpForNextLevel dinamicamente para a resposta
-    const finalLevelInfo = calculateLevel(progress.totalXp);
+    console.log(`✅ Progresso atualizado para usuário ${userId}`);
     
     return NextResponse.json({
       sessionResults: {
         pointsEarned: points,
         xpEarned: xp,
         accuracy: Math.round(accuracy * 100),
-        levelUp: progress.currentLevel > oldLevel,
+        levelUp,
         newLevel: progress.currentLevel,
         newBadges,
-        // ✅ NOVO: Breakdown detalhado para o frontend
         pointsBreakdown: scoringResult.breakdown,
       },
       updatedProgress: {
         totalXp: progress.totalXp,
         currentLevel: progress.currentLevel,
-        xpForNextLevel: finalLevelInfo.xpForNextLevel, // ✅ Calculado dinamicamente
+        xpForNextLevel: getXpForNextLevel(progress.currentLevel),
         totalPoints: progress.totalPoints,
         currentGlobalStreak: progress.currentGlobalStreak,
         overallAccuracy: Math.round(progress.overallAccuracy),

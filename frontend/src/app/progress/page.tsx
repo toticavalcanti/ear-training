@@ -40,7 +40,7 @@ export default function ProgressPage() {
     const loadProgress = async () => {
       try {
         // Verificar se tem token
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('jwtToken');
         if (!token) {
           setError('Faça login para ver seu progresso');
           setLoading(false);

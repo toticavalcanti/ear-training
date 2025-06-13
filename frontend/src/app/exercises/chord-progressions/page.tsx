@@ -1,42 +1,63 @@
-// src/app/exercises/chord-progressions/page.tsx
-// Página principal que integra seleção de dificuldade + exercício
-
+// frontend/src/app/exercises/chord-progressions/page.tsx
 'use client';
 
 import React, { useState } from 'react';
-import ChordProgressionDifficultyPage from '../../../components/ChordProgressionDifficultyPage';
-import ChordProgressionExercise from '../../../components/ChordProgressionExercise';
+import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
+import Loading from '@/components/Loading';
+import ChordProgressionDifficultyPage from '@/components/ChordProgressionDifficultyPage';
+import ChordProgressionExercise from '@/components/ChordProgressionExercise';
 
 type Difficulty = 'beginner' | 'intermediate' | 'advanced';
 
 const ChordProgressionsPage: React.FC = () => {
+  const { isAuthenticated, isLoading, user } = useAuth();
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | null>(null);
   const [showExercise, setShowExercise] = useState<boolean>(false);
 
-  // Quando usuário seleciona dificuldade
   const handleSelectDifficulty = (difficulty: Difficulty) => {
+    if ((difficulty === 'intermediate' || difficulty === 'advanced') && user?.subscription !== 'premium') {
+      alert('Você precisa de uma assinatura premium para acessar este nível.');
+      return;
+    }
     setSelectedDifficulty(difficulty);
     setShowExercise(true);
   };
 
-  // Voltar para seleção de dificuldade
   const handleBackToSelection = () => {
     setShowExercise(false);
     setSelectedDifficulty(null);
   };
 
-  // Callback quando completa um exercício
   const handleExerciseComplete = (result: {
     correct: boolean;
     userAnswer: string;
     expected: string;
     timeSpent: number;
   }) => {
-    console.log('Exercício completado:', result);
-    // Aqui você pode salvar estatísticas, enviar para analytics, etc.
+    console.log('Exercício de progressão completado:', result);
   };
 
-  // Se não selecionou dificuldade, mostra página de seleção
+  // ADICIONADO: Guarda de Carregamento para esperar a autenticação
+  if (isLoading) {
+    return <Loading message="Verificando autenticação..." fullScreen />;
+  }
+
+  // ADICIONADO: Guarda de Autenticação para proteger a página
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center p-8 bg-white rounded-lg shadow-md">
+          <h1 className="text-2xl font-bold mb-4">Acesso Restrito</h1>
+          <p className="mb-6">Você precisa estar logado para acessar este exercício.</p>
+          <Link href="/auth/login" className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700">
+            Fazer Login
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (!showExercise || !selectedDifficulty) {
     return (
       <ChordProgressionDifficultyPage 
@@ -45,10 +66,8 @@ const ChordProgressionsPage: React.FC = () => {
     );
   }
 
-  // Se selecionou, mostra o exercício
   return (
     <div className="relative">
-      {/* Botão voltar */}
       <div className="absolute top-4 left-4 z-10">
         <button
           onClick={handleBackToSelection}
@@ -58,9 +77,8 @@ const ChordProgressionsPage: React.FC = () => {
           <span className="font-medium">Voltar</span>
         </button>
       </div>
-
-      {/* Exercício */}
       <ChordProgressionExercise
+        key={selectedDifficulty} // Adicionar key para forçar recriação ao mudar dificuldade
         difficulty={selectedDifficulty}
         onComplete={handleExerciseComplete}
       />

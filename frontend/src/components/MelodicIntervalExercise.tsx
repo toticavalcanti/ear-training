@@ -9,13 +9,6 @@ import React, {
 } from 'react';
 import BeautifulPianoKeyboard from './BeautifulPianoKeyboard';
 
-declare global {
-  interface Window {
-    playPianoNote?: (note: string, frequency: number) => Promise<void>;
-    stopPianoNote?: (note: string) => void;
-  }
-}
-
 // =============================================
 // INTERFACES E TIPOS ADAPTADOS ÀS SUAS APIS
 // =============================================

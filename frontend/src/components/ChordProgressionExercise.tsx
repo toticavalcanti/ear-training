@@ -32,14 +32,6 @@ interface HarmonicAnalysis {
   voicing: number[];
 }
 
-// Tipagem para as funções globais do piano
-declare global {
-  interface Window {
-    playPianoNote?: (note: string, frequency: number) => Promise<void>;
-    stopPianoNote?: (note: string) => void;
-  }
-}
-
 interface ChordProgressionExerciseProps {
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   onComplete?: (result: {
@@ -59,31 +51,12 @@ class ChordProgressionService {
 
   async getProgressionsByDifficulty(difficulty: string): Promise<ChordProgression[]> {
     try {
-      // Tentar múltiplas fontes de token
-      let token = localStorage.getItem('token') || localStorage.getItem('jwtToken') || sessionStorage.getItem('token') || sessionStorage.getItem('jwtToken');
-      
-      console.log('🔍 Debug do serviço:');
-      console.log('🔍 Token "token":', localStorage.getItem('token') ? 'SIM' : 'NÃO');
-      console.log('🔍 Token "jwtToken":', localStorage.getItem('jwtToken') ? 'SIM' : 'NÃO');
-      console.log('🔍 Token final presente:', token ? 'SIM' : 'NÃO');
-      console.log('🔍 Difficulty:', difficulty);
-      console.log('🔍 URL:', `${this.baseUrl}/api/progressions?difficulty=${difficulty}`);
+      const token = localStorage.getItem('jwtToken');
       
       if (!token) {
-        // Verificar se há algum cookie de autenticação
-        const cookies = document.cookie.split(';');
-        const authCookie = cookies.find(cookie => cookie.trim().startsWith('auth=') || cookie.trim().startsWith('token='));
-        
-        if (authCookie) {
-          token = authCookie.split('=')[1];
-          console.log('🍪 Token encontrado em cookie');
-        } else {
-          throw new Error('Token de autenticação não encontrado. Faça login novamente.');
-        }
+        throw new Error('Token de autenticação não encontrado. Faça login novamente.');
       }
 
-      console.log(`🎼 Buscando progressões para: ${difficulty}`);
-      
       const response = await fetch(`${this.baseUrl}/api/progressions?difficulty=${difficulty}`, {
         method: 'GET',
         headers: {
@@ -92,38 +65,16 @@ class ChordProgressionService {
         }
       });
       
-      console.log('🔍 Response status:', response.status);
-      console.log('🔍 Response ok:', response.ok);
-      
       if (!response.ok) {
-        if (response.status === 401) {
-          console.log('❌ Token inválido ou expirado');
-          // Limpar todos os tokens
-          localStorage.removeItem('token');
-          localStorage.removeItem('jwtToken');
-          sessionStorage.removeItem('token');
-          sessionStorage.removeItem('jwtToken');
-          throw new Error('Sessão expirada. Faça login novamente.');
-        }
-        
-        // Tentar ler o corpo da resposta para mais detalhes
-        let errorMessage;
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorData.error || 'Erro desconhecido';
-        } catch {
-          errorMessage = `${response.status} ${response.statusText}`;
-        }
-        
-        console.log('❌ Erro da API:', errorMessage);
-        throw new Error(`Erro ao carregar progressões: ${errorMessage}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao carregar progressões');
       }
       
       const data = await response.json();
-      console.log(`✅ ${data.progressions?.length || 0} progressões carregadas`);
-      console.log('📊 Dados recebidos:', data);
       
-      return data.progressions || [];
+      // Correção: Acessar o array aninhado em "data.progressions"
+      return data.data?.progressions || [];
+
     } catch (error: unknown) {
       console.error('❌ Erro detalhado no serviço:', error);
       throw error;
