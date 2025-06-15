@@ -1,4 +1,4 @@
-// src/components/ChordProgressionExercise.tsx - VERSÃO LIMPA CORRIGIDA
+// src/components/ChordProgressionExercise.tsx - VERSÃO CORRIGIDA COM TRANSPOSIÇÃO
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -9,6 +9,7 @@ import {
   analyzeProgression, 
   resetVoiceLeading
 } from './VoiceLeadingSystem';
+import { createRandomizedExercise } from '@/utils/keyTransposition';
 
 // Interfaces
 interface ChordProgression {
@@ -23,6 +24,10 @@ interface ChordProgression {
   description: string;
   reference?: string;
   isActive: boolean;
+}
+
+interface TransposedChordProgression extends ChordProgression {
+  chords: string[];
 }
 
 interface HarmonicAnalysis {
@@ -72,7 +77,6 @@ class ChordProgressionService {
       
       const data = await response.json();
       
-      // Correção: Acessar o array aninhado em "data.progressions"
       return data.data?.progressions || [];
 
     } catch (error: unknown) {
@@ -91,7 +95,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
   // Estados principais
   const [currentProgression, setCurrentProgression] = useState<ChordProgression | null>(null);
   const [availableProgressions, setAvailableProgressions] = useState<ChordProgression[]>([]);
-  const [optionsPool, setOptionsPool] = useState<ChordProgression[]>([]);
+  const [optionsPool, setOptionsPool] = useState<TransposedChordProgression[]>([]);
   const [userAnswer, setUserAnswer] = useState<string>('');
   const [showResult, setShowResult] = useState<boolean>(false);
   const [isCorrect, setIsCorrect] = useState<boolean>(false);
@@ -102,6 +106,11 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
   const [isPianoReady, setIsPianoReady] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Estados de transposição
+  const [currentKey, setCurrentKey] = useState<string>('C');
+  const [semitoneOffset, setSemitoneOffset] = useState<number>(0);
+  const [transposedChords, setTransposedChords] = useState<string[]>([]);
 
   // Controle de velocidade
   const [playbackTempo, setPlaybackTempo] = useState<number>(60);
@@ -122,7 +131,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     return `${note}${octave}`;
   }, []);
 
-  // 🎹 FUNÇÃO DE REPRODUÇÃO HUMANIZADA (CORRIGIDA)
+  // 🎹 FUNÇÃO DE REPRODUÇÃO HUMANIZADA COM TRANSPOSIÇÃO
   const playProgression = useCallback(async () => {
     if (!currentProgression || !isPianoReady) {
       console.log('🎹 Piano ainda não está pronto ou progressão não definida');
@@ -133,8 +142,9 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     resetVoiceLeading();
 
     try {
-      console.log(`🎼 Tocando progressão HUMANIZADA: ${currentProgression.name}`);
+      console.log(`🎼 Tocando progressão em ${currentKey}: ${currentProgression.name}`);
       console.log(`🎵 Graus: ${currentProgression.degrees.join(' - ')}`);
+      console.log(`🔄 Acordes: ${transposedChords.join(' - ')}`);
       console.log(`⏱️ Tempo: ${playbackTempo} BPM`);
 
       const playNote = window.playPianoNote;
@@ -146,24 +156,20 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
         return;
       }
 
-      // 🎯 PARÂMETROS DE HUMANIZAÇÃO SUTIL
-      const chordDuration = (60000 / playbackTempo) * 1.5; // Duração total do acorde
-      const pauseBetweenChords = Math.max(50, chordDuration * 0.05); // Pausa mínima entre acordes
-      const noteOverlap = chordDuration * 0.92; // Notas duram 92% do tempo total (mais legato)
+      const chordDuration = (60000 / playbackTempo) * 1.5;
+      const pauseBetweenChords = Math.max(50, chordDuration * 0.05);
+      const noteOverlap = chordDuration * 0.92;
       
-      // 🎭 HUMANIZAÇÃO SUTIL: Delays mais naturais
       const getArpeggioDelays = (noteCount: number, direction: 'up' | 'down' = 'up'): number[] => {
-        const baseDelay = Math.max(3, Math.min(12, chordDuration / 50)); // 3-12ms (mais sutil)
-        const randomVariation = 1.2; // Variação mínima (0-1.2ms)
+        const baseDelay = Math.max(3, Math.min(12, chordDuration / 50));
+        const randomVariation = 1.2;
         const delays: number[] = [];
         
         for (let i = 0; i < noteCount; i++) {
           if (direction === 'up') {
-            // Grave → Agudo: crescimento natural mais suave
-            const naturalDelay = i * baseDelay * (0.85 + Math.random() * 0.3); // 85%-115%
+            const naturalDelay = i * baseDelay * (0.85 + Math.random() * 0.3);
             delays.push(naturalDelay + Math.random() * randomVariation);
           } else {
-            // Agudo → Grave: decrescimento natural
             const naturalDelay = (noteCount - 1 - i) * baseDelay * (0.85 + Math.random() * 0.3);
             delays.push(naturalDelay + Math.random() * randomVariation);
           }
@@ -172,26 +178,27 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
         return delays;
       };
 
-      console.log(`🎭 Humanização SUTIL ativa:`);
-      console.log(`   🎵 Duração por acorde: ${chordDuration.toFixed(0)}ms`);
-      console.log(`   🎶 Delays entre notas: 3-12ms (sutil)`);
-      console.log(`   🎹 Sobreposição: ${noteOverlap.toFixed(0)}ms (legato)`);
-      console.log(`   🎯 Direção: 92% ↗️ / 8% ↙️`);
-
-      // Gerar análise harmônica com voice leading
+      // Gerar análise harmônica com voice leading E TRANSPOSIÇÃO
       let analysis: HarmonicAnalysis[] = [];
       try {
-        analysis = analyzeProgression(currentProgression.degrees);
+        const originalAnalysis = analyzeProgression(currentProgression.degrees);
+        
+        // 🎹 TRANSPOR MIDI NOTES PARA A TONALIDADE ATUAL
+        analysis = originalAnalysis.map(chord => ({
+          ...chord,
+          voicing: chord.voicing.map(note => note + semitoneOffset)
+        }));
+        
         setHarmonicAnalysis(analysis);
+        console.log(`🎼 Análise transposta para ${currentKey} (+${semitoneOffset} semitons)`);
       } catch (analysisError) {
         console.warn('⚠️ Erro na análise harmônica:', analysisError);
         
-        // Fallback: reprodução simples sem voice leading
         const simpleFallback = currentProgression.degrees.map((degree, index) => ({
           symbol: degree,
           degree: degree,
           analysis: 'Reprodução simples',
-          voicing: [60 + (index * 4), 64 + (index * 4), 67 + (index * 4)] // C4, E4, G4 transposto
+          voicing: [60 + (index * 4) + semitoneOffset, 64 + (index * 4) + semitoneOffset, 67 + (index * 4) + semitoneOffset]
         }));
         
         analysis = simpleFallback;
@@ -204,19 +211,16 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
         return;
       }
 
-      // 🎼 EXECUÇÃO HUMANIZADA ACORDE POR ACORDE
-      const globalActiveNotes: Set<string> = new Set(); // Controla todas as notas ativas
+      const globalActiveNotes: Set<string> = new Set();
 
       for (let chordIndex = 0; chordIndex < analysis.length; chordIndex++) {
         const chordAnalysis: HarmonicAnalysis = analysis[chordIndex];
         const voicing: number[] = chordAnalysis.voicing || [60, 64, 67];
 
-        console.log(`🎵 Acorde ${chordIndex + 1}/${analysis.length}: ${chordAnalysis.symbol}`);
+        console.log(`🎵 Acorde ${chordIndex + 1}/${analysis.length}: ${chordAnalysis.symbol} (${currentKey})`);
 
-        // 🎭 HUMANIZAÇÃO SUTIL: Direção mais natural
-        const arpeggioDirection: 'up' | 'down' = Math.random() > 0.92 ? 'down' : 'up'; // 92% up, 8% down (mais natural)
+        const arpeggioDirection: 'up' | 'down' = Math.random() > 0.92 ? 'down' : 'up';
         
-        // Preparar notas ordenadas por direção
         const orderedNotes = [...voicing]
           .map(midi => ({
             midi,
@@ -225,17 +229,12 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
           }))
           .sort((a, b) => arpeggioDirection === 'up' ? a.midi - b.midi : b.midi - a.midi);
 
-        // Calcular delays do arpejo
         const arpeggioDelays = getArpeggioDelays(orderedNotes.length, arpeggioDirection);
 
-        console.log(`🎭 Arpejo ${arpeggioDirection === 'up' ? '↗️ Grave→Agudo' : '↙️ Agudo→Grave'}: ${orderedNotes.map(n => n.note).join('→')}`);
-
-        // Pausa entre acordes (mas não no primeiro)
         if (chordIndex > 0) {
           await new Promise<void>(resolve => setTimeout(resolve, pauseBetweenChords));
         }
 
-        // 🎹 TOCAR ARPEJO HUMANIZADO
         const notePromises: Promise<void>[] = [];
 
         orderedNotes.forEach((noteInfo, noteIndex) => {
@@ -244,22 +243,17 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
           const notePromise = new Promise<void>((resolve) => {
             setTimeout(async () => {
               try {
-                // ✅ TOCAR A NOTA
                 await playNote(noteInfo.note, noteInfo.frequency);
                 globalActiveNotes.add(noteInfo.note);
                 
-                console.log(`🎵 ▶️ ${noteInfo.note} (${noteInfo.midi}) delay: ${delay.toFixed(1)}ms`);
-                
-                // ⏰ PROGRAMAR PARADA DA NOTA (com overlap para sustentação)
                 setTimeout(() => {
                   try {
                     stopNote(noteInfo.note);
                     globalActiveNotes.delete(noteInfo.note);
-                    console.log(`🎵 ⏹️ ${noteInfo.note} (parada automática)`);
                   } catch (stopError) {
                     console.warn(`⚠️ Erro ao parar ${noteInfo.note}:`, stopError);
                   }
-                }, noteOverlap); // Sustenta por 85% do tempo do acorde
+                }, noteOverlap);
                 
               } catch (playError) {
                 console.warn(`⚠️ Erro ao tocar ${noteInfo.note}:`, playError);
@@ -272,31 +266,19 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
           notePromises.push(notePromise);
         });
 
-        // ⏳ AGUARDAR todas as notas do arpejo começarem
         await Promise.all(notePromises);
 
-        // ⏳ AGUARDAR duração total do acorde (considerando o último delay)
         const totalArpeggioTime = Math.max(...arpeggioDelays);
         const remainingTime = Math.max(0, chordDuration - totalArpeggioTime - pauseBetweenChords);
         
         if (remainingTime > 0) {
           await new Promise<void>(resolve => setTimeout(resolve, remainingTime));
         }
-
-        // 📊 LOG DO VOICE LEADING (para debug)
-        if (chordIndex < analysis.length - 1) {
-          const currentVoicing = voicing.map(getNoteNameFromMidi);
-          const nextVoicing = analysis[chordIndex + 1].voicing.map(getNoteNameFromMidi);
-          console.log(`🔄 Voice leading: ${currentVoicing.join('+')} → ${nextVoicing.join('+')}`);
-        }
       }
 
-      // 🧹 LIMPEZA FINAL: Parar todas as notas que ainda estão tocando
-      console.log(`🧹 Limpeza final: ${globalActiveNotes.size} notas ativas`);
       globalActiveNotes.forEach(note => {
         try {
           stopNote(note);
-          console.log(`🎵 🧹 ${note} (limpeza final)`);
         } catch (error) {
           console.warn(`⚠️ Erro na limpeza final de ${note}:`, error);
         }
@@ -304,16 +286,13 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
       globalActiveNotes.clear();
 
       setIsPlaying(false);
-      console.log('✅ Progressão humanizada (sutil) concluída com arpejos naturais');
+      console.log(`✅ Progressão concluída em ${currentKey}`);
 
     } catch (err: unknown) {
-      console.error('❌ Erro ao tocar progressão humanizada:', err);
+      console.error('❌ Erro ao tocar progressão:', err);
       setIsPlaying(false);
       
-      // 🚨 LIMPEZA DE EMERGÊNCIA
       try {
-        console.log('🚨 Executando limpeza de emergência...');
-        // Parar todas as notas possíveis (C3 a C6)
         for (let midi = 48; midi <= 84; midi++) {
           try {
             const note = getNoteNameFromMidi(midi);
@@ -321,17 +300,16 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
               window.stopPianoNote(note);
             }
           } catch {
-            // Ignorar erros individuais de limpeza
+            // Ignorar erros individuais
           }
         }
-        console.log('✅ Limpeza de emergência concluída');
       } catch {
         console.warn('⚠️ Erro na limpeza de emergência');
       }
     }
-  }, [currentProgression, getNoteNameFromMidi, midiToFrequency, isPianoReady, playbackTempo]);
+  }, [currentProgression, getNoteNameFromMidi, midiToFrequency, isPianoReady, playbackTempo, currentKey, semitoneOffset, transposedChords]);
 
-  // VERIFICAR RESPOSTA MELHORADA
+  // VERIFICAR RESPOSTA COM TRANSPOSIÇÃO
   const checkAnswer = useCallback(async () => {
     if (!currentProgression || !userAnswer) return;
     
@@ -340,25 +318,28 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
 
     console.log(`🔍 Verificando: ${userAnswer} vs ${currentProgression.name} = ${correct ? 'CORRETO' : 'INCORRETO'}`);
 
-    // Gerar análise harmônica para mostrar no resultado
     if (!harmonicAnalysis.length) {
       try {
-        const analysis: HarmonicAnalysis[] = analyzeProgression(currentProgression.degrees);
-        setHarmonicAnalysis(analysis);
+        const originalAnalysis = analyzeProgression(currentProgression.degrees);
+        
+        // 🎹 TRANSPOR MIDI NOTES
+        const transposedAnalysis = originalAnalysis.map(chord => ({
+          ...chord,
+          voicing: chord.voicing.map(note => note + semitoneOffset)
+        }));
+        
+        setHarmonicAnalysis(transposedAnalysis);
       } catch (analysisError) {
         console.warn('⚠️ Erro na análise harmônica:', analysisError);
-        // Análise harmônica será mostrada como vazia
       }
     }
 
-    // Atualizar estados
     setIsCorrect(correct);
     setShowResult(true);
     setShowHarmonicAnalysis(true);
     setTotalQuestions(prev => prev + 1);
     if (correct) setScore(prev => prev + 1);
 
-    // Callback original
     if (onComplete) {
       onComplete({
         correct,
@@ -368,41 +349,63 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
       });
     }
 
-  }, [currentProgression, userAnswer, startTime, harmonicAnalysis, onComplete]);
+  }, [currentProgression, userAnswer, startTime, harmonicAnalysis, onComplete, semitoneOffset]);
 
-  // Gerar novo exercício
+  // GERAR NOVO EXERCÍCIO COM TRANSPOSIÇÃO
   const generateNewExercise = useCallback(() => {
     if (availableProgressions.length === 0) return;
+    
+    console.log('🎲 === GERANDO EXERCÍCIO COM TRANSPOSIÇÃO ===');
     
     const randomIndex = Math.floor(Math.random() * availableProgressions.length);
     const selectedProgression = availableProgressions[randomIndex];
     
-    console.log(`🎲 Nova progressão: ${selectedProgression.name}`);
+    const incorrectOptions = availableProgressions
+      .filter((p: ChordProgression) => p._id !== selectedProgression._id && p.difficulty === difficulty)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 3);
+    
+    const allOptions = [selectedProgression, ...incorrectOptions];
+    
+    // 🎲 APLICAR TRANSPOSIÇÃO ALEATÓRIA
+    const randomizedData = createRandomizedExercise(selectedProgression, allOptions);
+    
+    console.log(`🔑 Tonalidade: ${randomizedData.randomKey}`);
+    console.log(`🎹 Offset: +${randomizedData.semitoneOffset} semitons`);
+    
+    const correctTransposed = randomizedData.transposedOptions.find(
+      opt => opt._id === selectedProgression._id
+    );
+    
+    if (correctTransposed) {
+      setTransposedChords(correctTransposed.chords);
+    }
     
     setCurrentProgression(selectedProgression);
+    setCurrentKey(randomizedData.randomKey);
+    setSemitoneOffset(randomizedData.semitoneOffset);
+    setOptionsPool(randomizedData.transposedOptions);
     setUserAnswer('');
     setShowResult(false);
     setShowHarmonicAnalysis(false);
     setHarmonicAnalysis([]);
     setStartTime(Date.now());
     resetVoiceLeading();
-  }, [availableProgressions]);
+    
+  }, [availableProgressions, difficulty]);
 
   const nextQuestion = useCallback(() => {
     generateNewExercise();
   }, [generateNewExercise]);
 
-  // Opções para escolha múltipla
+  // OPÇÕES COM ACORDES TRANSPOSTOS
   const exerciseOptions = useMemo(() => {
     if (!currentProgression || optionsPool.length < 4) return [];
     
-    const options = [currentProgression];
-    const incorrectOptions = optionsPool
-      .filter((p: ChordProgression) => p._id !== currentProgression._id && p.difficulty === difficulty)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 3);
+    const options = optionsPool
+      .filter((p: TransposedChordProgression) => p.difficulty === difficulty)
+      .slice(0, 4);
     
-    options.push(...incorrectOptions);
     return options.sort(() => Math.random() - 0.5);
   }, [currentProgression, optionsPool, difficulty]);
 
@@ -413,105 +416,75 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
         setIsLoading(true);
         setLoadError(null);
 
-        // Debug: verificar localStorage
-        console.log('🔍 === INÍCIO DEBUG EXERCÍCIO ===');
-        console.log('🔍 Verificando token no localStorage...');
-        console.log('🔍 URL atual:', window.location.href);
-        console.log('🔍 Difficulty:', difficulty);
-        
-        console.log('🔍 localStorage keys:', Object.keys(localStorage));
-        console.log('🔍 sessionStorage keys:', Object.keys(sessionStorage));
-        console.log('🔍 Cookies:', document.cookie);
-        
-        // Debug completo do localStorage
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key) {
-            const value = localStorage.getItem(key);
-            console.log(`🔍 localStorage[${key}]:`, value?.substring(0, 100));
-          }
-        }
-        
-        // Debug completo do sessionStorage
-        for (let i = 0; i < sessionStorage.length; i++) {
-          const key = sessionStorage.key(i);
-          if (key) {
-            const value = sessionStorage.getItem(key);
-            console.log(`🔍 sessionStorage[${key}]:`, value?.substring(0, 100));
-          }
-        }
-        
-        // Aguardar um pouco para garantir que a página carregou completamente
-        console.log('🔍 Aguardando 100ms...');
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
         let token = localStorage.getItem('token') || localStorage.getItem('jwtToken');
-        console.log('🔍 Token (chave "token") encontrado:', localStorage.getItem('token') ? 'SIM' : 'NÃO');
-        console.log('🔍 Token (chave "jwtToken") encontrado:', localStorage.getItem('jwtToken') ? 'SIM' : 'NÃO');
-        console.log('🔍 Token final usado:', token ? 'SIM' : 'NÃO');
-        
-        if (token) {
-          console.log('🔍 Token (primeiros 50 chars):', token.substring(0, 50));
-        }
 
         if (!token) {
-          // Verificar se token está na URL (redirect do login)
           const urlParams = new URLSearchParams(window.location.search);
           const urlToken = urlParams.get('token');
           
           if (urlToken) {
-            console.log('✅ Token encontrado na URL, salvando...');
             localStorage.setItem('token', urlToken);
             token = urlToken;
             
-            // Limpar URL
             const url = new URL(window.location.href);
             url.searchParams.delete('token');
             window.history.replaceState({}, '', url.pathname);
-            
-            console.log('💾 Token salvo no localStorage');
           } else {
-            // Verificar se há dados de sessão no sessionStorage ou cookies
             const sessionToken = sessionStorage.getItem('token') || sessionStorage.getItem('jwtToken');
             if (sessionToken) {
-              console.log('✅ Token encontrado no sessionStorage, copiando...');
               localStorage.setItem('token', sessionToken);
               token = sessionToken;
             } else {
-              console.log('❌ Nenhum token encontrado em localStorage ou sessionStorage');
-              throw new Error('Você precisa estar logado para acessar os exercícios. Redirecionando...');
+              throw new Error('Você precisa estar logado para acessar os exercícios.');
             }
           }
         }
 
-        console.log('🎼 Inicializando exercício de progressões harmônicas...');
-
-        // Carregar progressões do backend
         const progressions = await chordProgressionService.getProgressionsByDifficulty(difficulty);
         
         if (!progressions || progressions.length === 0) {
-          throw new Error(`Nenhuma progressão encontrada para nível ${difficulty}. Verifique se há dados no banco.`);
+          throw new Error(`Nenhuma progressão encontrada para nível ${difficulty}.`);
         }
 
         console.log(`🎼 Carregadas ${progressions.length} progressões para ${difficulty}`);
         setAvailableProgressions(progressions);
-        setOptionsPool(progressions);
 
-        // Gerar primeiro exercício
+        // NÃO setar optionsPool aqui - será setado pelo generateNewExercise
+        
+        // Gerar primeiro exercício com transposição
         const randomIndex = Math.floor(Math.random() * progressions.length);
         const firstProgression = progressions[randomIndex];
+        
+        // Gerar opções e aplicar transposição
+        const incorrectOptions = progressions
+          .filter((p: ChordProgression) => p._id !== firstProgression._id && p.difficulty === difficulty)
+          .sort(() => Math.random() - 0.5)
+          .slice(0, 3);
+        
+        const allOptions = [firstProgression, ...incorrectOptions];
+        const randomizedData = createRandomizedExercise(firstProgression, allOptions);
+        
+        const correctTransposed = randomizedData.transposedOptions.find(
+          opt => opt._id === firstProgression._id
+        );
+        
+        if (correctTransposed) {
+          setTransposedChords(correctTransposed.chords);
+        }
+        
         setCurrentProgression(firstProgression);
+        setCurrentKey(randomizedData.randomKey);
+        setSemitoneOffset(randomizedData.semitoneOffset);
+        setOptionsPool(randomizedData.transposedOptions);
         setStartTime(Date.now());
 
-        console.log(`🎵 Primeira progressão: ${firstProgression.name}`);
+        console.log(`🎵 Primeira progressão: ${firstProgression.name} em ${randomizedData.randomKey}`);
 
-        // Verificar se piano está pronto
         const checkPiano = (): void => {
           if (window.playPianoNote && window.stopPianoNote) {
             setIsPianoReady(true);
             console.log('🎹 Piano pronto!');
           } else {
-            console.log('🎹 Aguardando piano...');
             setTimeout(checkPiano, 500);
           }
         };
@@ -519,30 +492,12 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
 
       } catch (error: unknown) {
         console.error('❌ Erro ao inicializar exercício:', error);
-        
-        if (error instanceof Error && error.message.includes('logado')) {
-          // Verificar se realmente não há token ou se é problema de API
-          const tokenCheck = localStorage.getItem('token') || localStorage.getItem('jwtToken') || sessionStorage.getItem('token') || sessionStorage.getItem('jwtToken');
-          if (!tokenCheck) {
-            setLoadError('Redirecionando para login...');
-            setTimeout(() => {
-              window.location.href = '/auth/login';
-            }, 2000);
-          } else {
-            setLoadError('Erro de autenticação. Tentando novamente...');
-            setTimeout(() => {
-              window.location.reload();
-            }, 2000);
-          }
-        } else {
-          setLoadError(error instanceof Error ? error.message : 'Erro ao carregar progressões');
-        }
+        setLoadError(error instanceof Error ? error.message : 'Erro ao carregar progressões');
       } finally {
         setIsLoading(false);
       }
     };
 
-    // Só executar no cliente
     if (typeof window !== 'undefined') {
       initializeExercise();
     }
@@ -593,7 +548,6 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
             
             <button
               onClick={() => {
-                // Limpar todos os dados e ir para o login
                 localStorage.removeItem('token');
                 localStorage.removeItem('jwtToken');
                 localStorage.removeItem('googleAuthToken');
@@ -603,71 +557,6 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
               className="w-full bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700"
             >
               Fazer login novamente
-            </button>
-            
-            <button
-              onClick={() => {
-                console.log('🔧 Informações de debug:');
-                console.log('localStorage:', localStorage);
-                console.log('sessionStorage:', sessionStorage);
-                console.log('cookies:', document.cookie);
-                
-                // Mostrar informações na tela também
-                const debugInfo: string[] = [];
-                debugInfo.push('=== DEBUG INFO ===');
-                debugInfo.push(`URL: ${window.location.href}`);
-                debugInfo.push(`localStorage length: ${localStorage.length}`);
-                debugInfo.push(`sessionStorage length: ${sessionStorage.length}`);
-                debugInfo.push(`cookies: ${document.cookie || 'VAZIO'}`);
-                
-                // Mostrar todas as chaves do localStorage
-                for (let i = 0; i < localStorage.length; i++) {
-                  const key = localStorage.key(i);
-                  if (key) {
-                    const value = localStorage.getItem(key);
-                    debugInfo.push(`localStorage[${key}]: ${value?.substring(0, 50)}...`);
-                  }
-                }
-                
-                // Mostrar todas as chaves do sessionStorage
-                for (let i = 0; i < sessionStorage.length; i++) {
-                  const key = sessionStorage.key(i);
-                  if (key) {
-                    const value = sessionStorage.getItem(key);
-                    debugInfo.push(`sessionStorage[${key}]: ${value?.substring(0, 50)}...`);
-                  }
-                }
-                
-                // Testar API diretamente
-                const token = localStorage.getItem('token') || localStorage.getItem('jwtToken') || sessionStorage.getItem('token') || sessionStorage.getItem('jwtToken');
-                debugInfo.push(`Token encontrado: ${token ? 'SIM' : 'NÃO'}`);
-                debugInfo.push(`Token (primeiros 50 chars): ${token?.substring(0, 50)}`);
-                
-                if (token) {
-                  debugInfo.push('Testando API...');
-                  fetch('http://localhost:5000/api/progressions?difficulty=beginner', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                  })
-                  .then(r => {
-                    debugInfo.push(`API Status: ${r.status}`);
-                    return r.json();
-                  })
-                  .then(data => {
-                    debugInfo.push(`API Response: ${JSON.stringify(data).substring(0, 100)}`);
-                    console.log('✅ Teste API:', data);
-                  })
-                  .catch(err => {
-                    debugInfo.push(`API Error: ${err.message}`);
-                    console.log('❌ Erro API:', err);
-                  });
-                }
-                
-                // Mostrar todas as informações em um alert
-                alert(debugInfo.join('\n'));
-              }}
-              className="w-full bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 text-sm"
-            >
-              Debug no Console + Alert
             </button>
           </div>
         </div>
@@ -679,7 +568,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-7xl mx-auto">
         
-        {/* HEADER MELHORADO */}
+        {/* HEADER MELHORADO COM TONALIDADE */}
         <div className="bg-white rounded-lg shadow-sm mb-6 p-6">
           <div className="text-center">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -702,8 +591,8 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
             </div>
           </div>
 
-          {/* Progresso da sessão */}
-          <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {/* Progresso da sessão COM TONALIDADE */}
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-3">
             <div className="bg-green-50 border border-green-200 rounded-md px-3 py-2 text-center">
               <div className="text-green-700 text-xs font-medium">Sessão</div>
               <div className="text-green-800 font-bold">{score}/{totalQuestions}</div>
@@ -713,8 +602,12 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
               <div className="text-blue-800 font-bold">{playbackTempo} BPM</div>
             </div>
             <div className="bg-purple-50 border border-purple-200 rounded-md px-3 py-2 text-center">
-              <div className="text-purple-700 text-xs font-medium">Progressão</div>
-              <div className="text-purple-800 font-bold text-xs">{currentProgression.name}</div>
+              <div className="text-purple-700 text-xs font-medium">Tonalidade</div>
+              <div className="text-purple-800 font-bold">{currentKey}</div>
+            </div>
+            <div className="bg-orange-50 border border-orange-200 rounded-md px-3 py-2 text-center">
+              <div className="text-orange-700 text-xs font-medium">Progressão</div>
+              <div className="text-orange-800 font-bold text-xs">{currentProgression.name}</div>
             </div>
             <div className="bg-gray-50 border border-gray-200 rounded-md px-3 py-2 text-center">
               <div className="text-gray-700 text-xs font-medium">Categoria</div>
@@ -729,7 +622,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
           {/* COLUNA PRINCIPAL */}
           <div className="xl:col-span-2 space-y-6">
             
-            {/* PLAYER DE ÁUDIO MELHORADO */}
+            {/* PLAYER DE ÁUDIO COM INFO DA TONALIDADE */}
             <div className="bg-white rounded-xl shadow-sm p-6">
               <div className="text-center">
                 {!isPianoReady && (
@@ -741,7 +634,24 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                   </div>
                 )}
 
-                {/* 🎭 Status de Humanização Sutil */}
+                {/* INFO DA TONALIDADE ATUAL */}
+                <div className="mb-4 p-3 bg-indigo-50 rounded-lg border border-indigo-200">
+                  <h5 className="font-semibold text-indigo-800 mb-2 flex items-center justify-center gap-2">
+                    <span className="text-lg">🔑</span>
+                    Tonalidade: {currentKey}
+                  </h5>
+                  
+                  <div className="text-sm text-indigo-700">
+                    <div className="mb-1">
+                      <strong>Acordes:</strong> {transposedChords.join(' - ')}
+                    </div>
+                    <div className="text-xs text-indigo-600">
+                      Graus: {currentProgression.degrees.join(' - ')}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status de Humanização */}
                 <div className="mb-4 p-3 bg-purple-50 rounded-lg border border-purple-200">
                   <h5 className="font-semibold text-purple-800 mb-2 flex items-center justify-center gap-2">
                     <span className="text-lg">🎭</span>
@@ -767,12 +677,6 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                       <span className="text-purple-700">Voice leading:</span>
                       <span className="font-bold text-green-600">Suave</span>
                     </div>
-                  </div>
-                  
-                  <div className="mt-2 text-center">
-                    <span className="text-xs text-purple-600 italic">
-                      🎼 Sutileza natural como pianista real
-                    </span>
                   </div>
                 </div>
 
@@ -823,7 +727,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                   {isPlaying ? (
                     <div className="flex items-center justify-center gap-3">
                       <div className="animate-pulse text-2xl">🎭</div>
-                      <span>Tocando sutilmente... ({playbackTempo} BPM)</span>
+                      <span>Tocando em {currentKey}... ({playbackTempo} BPM)</span>
                     </div>
                   ) : !isPianoReady ? (
                     <div className="flex items-center justify-center gap-3">
@@ -833,31 +737,18 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                   ) : (
                     <div className="flex items-center justify-center gap-3">
                       <div className="text-3xl">🎭</div>
-                      <span>Piano Humanizado Sutil ({playbackTempo} BPM)</span>
+                      <span>Tocar em {currentKey} ({playbackTempo} BPM)</span>
                     </div>
                   )}
                 </button>
                 
                 <p className="mt-4 text-gray-600 text-sm">
-                  🎼 Arpejos sutis (3-12ms) e legato natural como pianista real
+                  🎼 Progressão transposta para {currentKey} • Arpejos sutis e legato natural
                 </p>
-                
-                {/* Info da progressão atual */}
-                {currentProgression && (
-                  <div className="mt-3 text-xs text-gray-500">
-                    <span className="capitalize">{currentProgression.category}</span>
-                    <span className="mx-2">•</span>
-                    <span className="capitalize">{currentProgression.mode}</span>
-                    <span className="mx-2">•</span>
-                    <span>{currentProgression.timeSignature}</span>
-                    <span className="mx-2">•</span>
-                    <span className="text-purple-600">Piano sutil</span>
-                  </div>
-                )}
               </div>
             </div>
 
-            {/* OPÇÕES DE RESPOSTA MELHORADAS */}
+            {/* OPÇÕES COM ACORDES TRANSPOSTOS */}
             <div className="bg-white rounded-xl shadow-sm p-6">
               <ChordProgressionOptions
                 options={exerciseOptions}
@@ -907,19 +798,19 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                   </div>
                 </div>
 
-                {/* PAUTA MUSICAL COM A PROGRESSÃO */}
+                {/* PAUTA MUSICAL COM TONALIDADE */}
                 <MusicalStaff
                   progression={harmonicAnalysis}
-                  title={currentProgression.name}
+                  title={`${currentProgression.name} - ${currentKey}`}
                   timeSignature={currentProgression.timeSignature}
                   showChordSymbols={true}
                 />
 
-                {/* Análise Harmônica Detalhada */}
+                {/* Análise Harmônica */}
                 <div className="bg-white rounded-xl shadow-sm p-6">
                   <h4 className="font-bold text-lg mb-4 flex items-center gap-2">
                     <span className="text-xl">🎼</span>
-                    Análise Harmônica
+                    Análise Harmônica - {currentKey}
                   </h4>
                   
                   <div className="space-y-3">
@@ -953,8 +844,8 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                   className="w-full bg-green-600 text-white py-4 px-6 rounded-xl font-bold text-lg hover:bg-green-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
                 >
                   <div className="flex items-center justify-center gap-2">
-                    <span className="text-xl">➡️</span>
-                    <span>Próximo Exercício</span>
+                    <span className="text-xl">🎲</span>
+                    <span>Nova Tonalidade</span>
                   </div>
                 </button>
               </div>
@@ -976,6 +867,10 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                   <span className="text-sm text-gray-600">Precisão</span>
                   <span className="font-bold">{totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0}%</span>
                 </div>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span className="text-sm text-gray-600">Tonalidade atual</span>
+                  <span className="font-bold text-purple-600">{currentKey}</span>
+                </div>
                 <div className="flex justify-between items-center py-2">
                   <span className="text-sm text-gray-600">Piano humanizado</span>
                   <span className="font-bold text-purple-600">Sutil</span>
@@ -988,7 +883,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
         {/* PIANO */}
         <div className="mt-8 bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-xl font-bold mb-4 text-center text-gray-800">
-            🎹 Piano Virtual
+            🎹 Piano Virtual - {currentKey}
           </h3>
           <BeautifulPianoKeyboard />
         </div>
