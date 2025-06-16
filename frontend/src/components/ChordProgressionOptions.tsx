@@ -1,13 +1,14 @@
-// Componente para mostrar opções com cifras bonitas
-// src/components/ChordProgressionOptions.tsx
+// src/components/ChordProgressionOptions.tsx - VERSÃO CORRIGIDA
+// Remove formatChordSymbol bugado e usa cifras transpostas
 
 import React from 'react';
-import { formatChordSymbol } from './VoiceLeadingSystem';
 
-interface ChordProgression {
+// ✅ Interface CORRIGIDA - agora usa TransposedChordProgression
+interface TransposedChordProgression {
   _id: string;
   name: string;
-  degrees: string[];
+  degrees: string[];           // ✅ Graus puros para análise harmônica
+  chords: string[];           // ✅ Cifras transpostas para exibição
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   category: string;
   mode: 'major' | 'minor';
@@ -16,12 +17,13 @@ interface ChordProgression {
 }
 
 interface ChordProgressionOptionsProps {
-  options: ChordProgression[];
+  options: TransposedChordProgression[];  // ✅ MUDOU AQUI
   selectedAnswer: string;
   showResult: boolean;
   correctAnswer: string;
   onSelect: (progressionName: string) => void;
   disabled?: boolean;
+  currentKey?: string; // ✅ Nova prop para mostrar a tonalidade
 }
 
 const ChordProgressionOptions: React.FC<ChordProgressionOptionsProps> = ({
@@ -30,12 +32,14 @@ const ChordProgressionOptions: React.FC<ChordProgressionOptionsProps> = ({
   showResult,
   correctAnswer,
   onSelect,
-  disabled = false
+  disabled = false,
+  currentKey = 'C' // ✅ Default C se não especificado
 }) => {
 
-  // Converter graus em cifras formatadas
-  const formatProgressionCifras = (degrees: string[]): string => {
-    return degrees.map(degree => formatChordSymbol(degree)).join(' - ');
+  // ✅ FUNÇÃO CORRIGIDA - usa cifras já transpostas
+  const formatProgressionCifras = (chords: string[]): string => {
+    // Não precisa mais de formatChordSymbol bugado!
+    return chords.join(' - ');
   };
 
   // Cor baseada no resultado
@@ -70,9 +74,15 @@ const ChordProgressionOptions: React.FC<ChordProgressionOptionsProps> = ({
 
   return (
     <div className="space-y-4">
-      <h3 className="text-xl font-bold text-center text-gray-800 mb-6">
-        Qual progressão harmônica você ouviu?
-      </h3>
+      {/* ✅ Header com tonalidade */}
+      <div className="text-center mb-6">
+        <h3 className="text-xl font-bold text-gray-800 mb-2">
+          Qual progressão harmônica você ouviu?
+        </h3>
+        <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg inline-block">
+          <span className="font-mono text-lg">🎹 Tonalidade: {currentKey}</span>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 gap-4">
         {options.map((progression) => {
@@ -98,19 +108,19 @@ const ChordProgressionOptions: React.FC<ChordProgressionOptionsProps> = ({
                     {getResultIcon(progression.name)}
                   </div>
 
-                  {/* Cifras da progressão - DESTAQUE PRINCIPAL */}
+                  {/* ✅ CIFRAS CORRIGIDAS - usa progression.chords */}
                   <div className="mb-3 p-3 bg-white bg-opacity-60 rounded-lg border">
                     <div className="text-center">
                       <div className="text-xs text-gray-600 mb-1 uppercase tracking-wide">
-                        Progressão
+                        Progressão em {currentKey}
                       </div>
                       <div className="font-mono font-bold text-lg text-gray-900 tracking-wide">
-                        {formatProgressionCifras(progression.degrees)}
+                        {formatProgressionCifras(progression.chords)}
                       </div>
                     </div>
                   </div>
 
-                  {/* Graus romanos (menor destaque) */}
+                  {/* ✅ ANÁLISE HARMÔNICA - usa progression.degrees */}
                   <div className="mb-3">
                     <div className="text-xs text-gray-500 mb-1">Análise harmônica:</div>
                     <div className="font-mono text-sm text-gray-700">
@@ -166,20 +176,28 @@ const ChordProgressionOptions: React.FC<ChordProgressionOptionsProps> = ({
         })}
       </div>
 
-      {/* Legenda de cifras */}
+      {/* ✅ LEGENDA CORRIGIDA */}
       <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
         <h4 className="font-semibold text-blue-900 mb-2 text-sm">
-          💡 Guia de Cifras (Estilo Real Book)
+          💡 Como Interpretar
         </h4>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-blue-800">
-          <div><span className="font-mono font-bold">C</span> = Maior</div>
-          <div><span className="font-mono font-bold">Cm</span> = Menor</div>
-          <div><span className="font-mono font-bold">C7</span> = Dominante</div>
-          <div><span className="font-mono font-bold">C∆7</span> = Maior com 7ª</div>
-          <div><span className="font-mono font-bold">Cm7</span> = Menor com 7ª</div>
-          <div><span className="font-mono font-bold">C7sus4</span> = Dominante suspenso</div>
-          <div><span className="font-mono font-bold">C7alt</span> = Dominante alterado</div>
-          <div><span className="font-mono font-bold">C°7</span> = Diminuto</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-blue-800">
+          <div className="space-y-1">
+            <div><span className="font-bold">Progressão em {currentKey}:</span> Cifras na tonalidade atual</div>
+            <div><span className="font-bold">Análise harmônica:</span> Graus funcionais universais</div>
+          </div>
+          <div className="space-y-1">
+            <div><span className="font-mono font-bold">Cmaj7, Dm7</span> = Cifras específicas</div>
+            <div><span className="font-mono font-bold">Imaj7, ii7</span> = Função harmônica</div>
+          </div>
+        </div>
+        
+        {/* ✅ Explicação sobre transposição */}
+        <div className="mt-3 pt-3 border-t border-blue-300">
+          <div className="text-xs text-blue-700">
+            <span className="font-semibold">🔄 Transposição:</span> Os graus harmônicos (ii7, V7, Imaj7) são universais. 
+            As cifras ({currentKey !== 'C' ? 'Dm7, G7, Cmaj7 em C' : 'Ex: Em Db seriam Ebm7, Ab7, Dbmaj7'}) mudam conforme a tonalidade.
+          </div>
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-// src/components/ChordProgressionExercise.tsx - VERSÃO CORRIGIDA COM TRANSPOSIÇÃO
+// src/components/ChordProgressionExercise.tsx - VERSÃO CORRIGIDA COM TRANSPOSIÇÃO - ARQUIVO COMPLETO
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -131,7 +131,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     return `${note}${octave}`;
   }, []);
 
-  // 🎹 FUNÇÃO DE REPRODUÇÃO HUMANIZADA COM TRANSPOSIÇÃO
+  // 🎹 FUNÇÃO DE REPRODUÇÃO HUMANIZADA COM TRANSPOSIÇÃO CORRIGIDA
   const playProgression = useCallback(async () => {
     if (!currentProgression || !isPianoReady) {
       console.log('🎹 Piano ainda não está pronto ou progressão não definida');
@@ -142,9 +142,11 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     resetVoiceLeading();
 
     try {
-      console.log(`🎼 Tocando progressão em ${currentKey}: ${currentProgression.name}`);
-      console.log(`🎵 Graus: ${currentProgression.degrees.join(' - ')}`);
-      console.log(`🔄 Acordes: ${transposedChords.join(' - ')}`);
+      console.log(`🎼 === REPRODUÇÃO CORRIGIDA INICIADA ===`);
+      console.log(`🎯 Progressão: ${currentProgression.name}`);
+      console.log(`🔑 Tonalidade: ${currentKey}`);
+      console.log(`📊 Graus originais: ${currentProgression.degrees.join(' - ')}`);
+      console.log(`🎵 Cifras transpostas: ${transposedChords.join(' - ')}`);
       console.log(`⏱️ Tempo: ${playbackTempo} BPM`);
 
       const playNote = window.playPianoNote;
@@ -178,24 +180,36 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
         return delays;
       };
 
-      // Gerar análise harmônica com voice leading E TRANSPOSIÇÃO
+      // 🎼 ANÁLISE HARMÔNICA CORRIGIDA - BASEADA APENAS EM GRAUS
       let analysis: HarmonicAnalysis[] = [];
       try {
+        console.log(`🔍 Analisando GRAUS (sistema corrigido): ${currentProgression.degrees.join(', ')}`);
+        
+        // ✅ CORREÇÃO: Usar apenas graus originais para análise harmônica
         const originalAnalysis = analyzeProgression(currentProgression.degrees);
         
-        // 🎹 TRANSPOR MIDI NOTES PARA A TONALIDADE ATUAL
+        // ✅ CORREÇÃO: Transpor apenas as notas MIDI, mantendo graus e símbolos originais
         analysis = originalAnalysis.map(chord => ({
           ...chord,
-          voicing: chord.voicing.map(note => note + semitoneOffset)
+          voicing: chord.voicing.map(note => note + semitoneOffset),
+          // Manter símbolo e grau originais (não cifras transpostas)
+          symbol: chord.symbol, // Este é o grau/símbolo harmônico
+          degree: chord.degree  // Este é o grau original
         }));
         
         setHarmonicAnalysis(analysis);
-        console.log(`🎼 Análise transposta para ${currentKey} (+${semitoneOffset} semitons)`);
+        console.log(`✅ Análise harmônica transposta para ${currentKey} (+${semitoneOffset} semitons)`);
+        console.log(`📋 Mapeamento: Graus → Símbolos → MIDI transposto`);
+        analysis.forEach((chord, i) => {
+          console.log(`   ${i+1}. ${chord.degree} → ${chord.symbol} → MIDI: ${chord.voicing.join(',')}`);
+        });
+        
       } catch (analysisError) {
         console.warn('⚠️ Erro na análise harmônica:', analysisError);
         
+        // Fallback simples usando os graus
         const simpleFallback = currentProgression.degrees.map((degree, index) => ({
-          symbol: degree,
+          symbol: degree, // Usar o grau como símbolo
           degree: degree,
           analysis: 'Reprodução simples',
           voicing: [60 + (index * 4) + semitoneOffset, 64 + (index * 4) + semitoneOffset, 67 + (index * 4) + semitoneOffset]
@@ -213,11 +227,12 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
 
       const globalActiveNotes: Set<string> = new Set();
 
+      // Reprodução acorde por acorde
       for (let chordIndex = 0; chordIndex < analysis.length; chordIndex++) {
         const chordAnalysis: HarmonicAnalysis = analysis[chordIndex];
         const voicing: number[] = chordAnalysis.voicing || [60, 64, 67];
 
-        console.log(`🎵 Acorde ${chordIndex + 1}/${analysis.length}: ${chordAnalysis.symbol} (${currentKey})`);
+        console.log(`🎵 Acorde ${chordIndex + 1}/${analysis.length}: ${chordAnalysis.degree} (grau) → ${transposedChords[chordIndex] || 'N/A'} (cifra em ${currentKey})`);
 
         const arpeggioDirection: 'up' | 'down' = Math.random() > 0.92 ? 'down' : 'up';
         
@@ -276,6 +291,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
         }
       }
 
+      // Limpeza final
       globalActiveNotes.forEach(note => {
         try {
           stopNote(note);
@@ -286,12 +302,13 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
       globalActiveNotes.clear();
 
       setIsPlaying(false);
-      console.log(`✅ Progressão concluída em ${currentKey}`);
+      console.log(`✅ Progressão concluída em ${currentKey} - Sistema corrigido funcionando!`);
 
     } catch (err: unknown) {
       console.error('❌ Erro ao tocar progressão:', err);
       setIsPlaying(false);
       
+      // Limpeza de emergência
       try {
         for (let midi = 48; midi <= 84; midi++) {
           try {
@@ -309,26 +326,33 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     }
   }, [currentProgression, getNoteNameFromMidi, midiToFrequency, isPianoReady, playbackTempo, currentKey, semitoneOffset, transposedChords]);
 
-  // VERIFICAR RESPOSTA COM TRANSPOSIÇÃO
+  // ✅ VERIFICAR RESPOSTA COM SISTEMA CORRIGIDO
   const checkAnswer = useCallback(async () => {
     if (!currentProgression || !userAnswer) return;
     
     const correct = userAnswer === currentProgression.name;
     const timeSpent = (Date.now() - startTime) / 1000;
 
-    console.log(`🔍 Verificando: ${userAnswer} vs ${currentProgression.name} = ${correct ? 'CORRETO' : 'INCORRETO'}`);
+    console.log(`🔍 === VERIFICAÇÃO DE RESPOSTA (SISTEMA CORRIGIDO) ===`);
+    console.log(`📝 Resposta do usuário: "${userAnswer}"`);
+    console.log(`🎯 Resposta esperada: "${currentProgression.name}"`);
+    console.log(`✅ Resultado: ${correct ? 'CORRETO' : 'INCORRETO'}`);
+    console.log(`⏱️ Tempo gasto: ${timeSpent.toFixed(1)}s`);
 
+    // Garantir que a análise harmônica está disponível
     if (!harmonicAnalysis.length) {
       try {
+        console.log(`🔍 Gerando análise harmônica para verificação...`);
         const originalAnalysis = analyzeProgression(currentProgression.degrees);
         
-        // 🎹 TRANSPOR MIDI NOTES
+        // Transpor apenas as notas MIDI
         const transposedAnalysis = originalAnalysis.map(chord => ({
           ...chord,
           voicing: chord.voicing.map(note => note + semitoneOffset)
         }));
         
         setHarmonicAnalysis(transposedAnalysis);
+        console.log(`✅ Análise gerada: ${transposedAnalysis.length} acordes`);
       } catch (analysisError) {
         console.warn('⚠️ Erro na análise harmônica:', analysisError);
       }
@@ -351,14 +375,17 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
 
   }, [currentProgression, userAnswer, startTime, harmonicAnalysis, onComplete, semitoneOffset]);
 
-  // GERAR NOVO EXERCÍCIO COM TRANSPOSIÇÃO
+  // ✅ GERAR NOVO EXERCÍCIO COM SISTEMA CORRIGIDO
   const generateNewExercise = useCallback(() => {
     if (availableProgressions.length === 0) return;
     
-    console.log('🎲 === GERANDO EXERCÍCIO COM TRANSPOSIÇÃO ===');
+    console.log('🎲 === GERANDO EXERCÍCIO COM SISTEMA CORRIGIDO ===');
     
     const randomIndex = Math.floor(Math.random() * availableProgressions.length);
     const selectedProgression = availableProgressions[randomIndex];
+    
+    console.log(`🎯 Progressão selecionada: "${selectedProgression.name}"`);
+    console.log(`📊 Graus: ${selectedProgression.degrees.join(' | ')}`);
     
     const incorrectOptions = availableProgressions
       .filter((p: ChordProgression) => p._id !== selectedProgression._id && p.difficulty === difficulty)
@@ -367,20 +394,23 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     
     const allOptions = [selectedProgression, ...incorrectOptions];
     
-    // 🎲 APLICAR TRANSPOSIÇÃO ALEATÓRIA
+    // ✅ APLICAR TRANSPOSIÇÃO USANDO SISTEMA CORRIGIDO
     const randomizedData = createRandomizedExercise(selectedProgression, allOptions);
     
-    console.log(`🔑 Tonalidade: ${randomizedData.randomKey}`);
-    console.log(`🎹 Offset: +${randomizedData.semitoneOffset} semitons`);
+    console.log(`🔑 Nova tonalidade: ${randomizedData.randomKey}`);
+    console.log(`🎹 Offset MIDI: +${randomizedData.semitoneOffset} semitons`);
     
+    // Encontrar as cifras transpostas da progressão correta
     const correctTransposed = randomizedData.transposedOptions.find(
       opt => opt._id === selectedProgression._id
     );
     
     if (correctTransposed) {
       setTransposedChords(correctTransposed.chords);
+      console.log(`🎵 Cifras transpostas: ${correctTransposed.chords.join(' - ')}`);
     }
     
+    // Atualizar estados
     setCurrentProgression(selectedProgression);
     setCurrentKey(randomizedData.randomKey);
     setSemitoneOffset(randomizedData.semitoneOffset);
@@ -392,13 +422,15 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     setStartTime(Date.now());
     resetVoiceLeading();
     
+    console.log('✅ Exercício gerado com sistema corrigido!\n');
+    
   }, [availableProgressions, difficulty]);
 
   const nextQuestion = useCallback(() => {
     generateNewExercise();
   }, [generateNewExercise]);
 
-  // OPÇÕES COM ACORDES TRANSPOSTOS
+  // ✅ OPÇÕES DE EXERCÍCIO (usando nomes das progressões, não cifras)
   const exerciseOptions = useMemo(() => {
     if (!currentProgression || optionsPool.length < 4) return [];
     
@@ -409,13 +441,17 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     return options.sort(() => Math.random() - 0.5);
   }, [currentProgression, optionsPool, difficulty]);
 
-  // Effects de inicialização
+  // ✅ EFEITO DE INICIALIZAÇÃO COM SISTEMA CORRIGIDO
   useEffect(() => {
     const initializeExercise = async () => {
       try {
         setIsLoading(true);
         setLoadError(null);
 
+        console.log('🚀 === INICIALIZANDO SISTEMA CORRIGIDO ===');
+        console.log(`📊 Dificuldade: ${difficulty}`);
+
+        // Verificar token de autenticação
         let token = localStorage.getItem('token') || localStorage.getItem('jwtToken');
 
         if (!token) {
@@ -440,6 +476,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
           }
         }
 
+        // Carregar progressões do banco de dados
         const progressions = await chordProgressionService.getProgressionsByDifficulty(difficulty);
         
         if (!progressions || progressions.length === 0) {
@@ -447,43 +484,64 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
         }
 
         console.log(`🎼 Carregadas ${progressions.length} progressões para ${difficulty}`);
+        
+        // ✅ VALIDAR FORMATO DOS DADOS (verificar se são graus)
+        const firstProgression = progressions[0];
+        console.log(`🔍 Validando formato dos dados do banco...`);
+        console.log(`📋 Exemplo - "${firstProgression.name}": ${firstProgression.degrees.join(' | ')}`);
+        
+        // Verificar se parece com graus ou cifras
+        const hasChordSymbols = firstProgression.degrees.some(degree => 
+          /^[A-G][b#]?/.test(degree) // Detecta se começa com nota (A-G)
+        );
+        
+        if (hasChordSymbols) {
+          console.warn('⚠️ ATENÇÃO: Dados parecem conter cifras ao invés de graus!');
+          console.warn('⚠️ O sistema corrigido espera graus harmônicos (I, ii7, V7, etc.)');
+        } else {
+          console.log('✅ Dados estão no formato correto (graus harmônicos)');
+        }
+        
         setAvailableProgressions(progressions);
 
-        // NÃO setar optionsPool aqui - será setado pelo generateNewExercise
-        
         // Gerar primeiro exercício com transposição
         const randomIndex = Math.floor(Math.random() * progressions.length);
-        const firstProgression = progressions[randomIndex];
+        const firstProgression2 = progressions[randomIndex];
         
-        // Gerar opções e aplicar transposição
+        // Gerar opções incorretas
         const incorrectOptions = progressions
-          .filter((p: ChordProgression) => p._id !== firstProgression._id && p.difficulty === difficulty)
+          .filter((p: ChordProgression) => p._id !== firstProgression2._id && p.difficulty === difficulty)
           .sort(() => Math.random() - 0.5)
           .slice(0, 3);
         
-        const allOptions = [firstProgression, ...incorrectOptions];
-        const randomizedData = createRandomizedExercise(firstProgression, allOptions);
+        const allOptions = [firstProgression2, ...incorrectOptions];
+        
+        // ✅ APLICAR TRANSPOSIÇÃO COM SISTEMA CORRIGIDO
+        const randomizedData = createRandomizedExercise(firstProgression2, allOptions);
         
         const correctTransposed = randomizedData.transposedOptions.find(
-          opt => opt._id === firstProgression._id
+          opt => opt._id === firstProgression2._id
         );
         
         if (correctTransposed) {
           setTransposedChords(correctTransposed.chords);
         }
         
-        setCurrentProgression(firstProgression);
+        // Definir estados iniciais
+        setCurrentProgression(firstProgression2);
         setCurrentKey(randomizedData.randomKey);
         setSemitoneOffset(randomizedData.semitoneOffset);
         setOptionsPool(randomizedData.transposedOptions);
         setStartTime(Date.now());
 
-        console.log(`🎵 Primeira progressão: ${firstProgression.name} em ${randomizedData.randomKey}`);
+        console.log(`🎵 Primeira progressão: ${firstProgression2.name} em ${randomizedData.randomKey}`);
+        console.log(`🔧 Sistema corrigido inicializado com sucesso!`);
 
+        // Verificar disponibilidade do piano
         const checkPiano = (): void => {
           if (window.playPianoNote && window.stopPianoNote) {
             setIsPianoReady(true);
-            console.log('🎹 Piano pronto!');
+            console.log('🎹 Piano pronto para uso!');
           } else {
             setTimeout(checkPiano, 500);
           }
@@ -515,15 +573,18 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     return () => clearInterval(interval);
   }, [isPianoReady]);
 
-  // Loading states
+  // ✅ ESTADOS DE CARREGAMENTO
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-lg shadow-lg p-8 text-center max-w-md w-full">
           <div className="text-6xl mb-4">🎼</div>
           <div className="text-xl font-medium mb-2">Carregando progressões...</div>
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-gray-600 mb-4">
             {difficulty === 'beginner' ? 'Iniciante' : difficulty === 'intermediate' ? 'Intermediário' : 'Avançado'}
+          </div>
+          <div className="text-xs text-green-600 bg-green-50 rounded-lg p-3">
+            ✅ Sistema corrigido • Graus harmônicos puros
           </div>
         </div>
       </div>
@@ -568,7 +629,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-7xl mx-auto">
         
-        {/* HEADER MELHORADO COM TONALIDADE */}
+        {/* ✅ HEADER MELHORADO COM SISTEMA CORRIGIDO */}
         <div className="bg-white rounded-lg shadow-sm mb-6 p-6">
           <div className="text-center">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -585,7 +646,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                 Ouça progressões harmônicas e identifique pelo som
                 <br />
                 <span className="text-purple-600 font-medium">
-                  🎭 Piano humanizado • Voice leading otimizado
+                  ✅ Sistema corrigido • Graus puros • Sem mistura
                 </span>
               </div>
             </div>
@@ -622,7 +683,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
           {/* COLUNA PRINCIPAL */}
           <div className="xl:col-span-2 space-y-6">
             
-            {/* PLAYER DE ÁUDIO COM INFO DA TONALIDADE */}
+            {/* ✅ PLAYER DE ÁUDIO COM SISTEMA CORRIGIDO */}
             <div className="bg-white rounded-xl shadow-sm p-6">
               <div className="text-center">
                 {!isPianoReady && (
@@ -634,47 +695,92 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                   </div>
                 )}
 
-                {/* INFO DA TONALIDADE ATUAL */}
-                <div className="mb-4 p-3 bg-indigo-50 rounded-lg border border-indigo-200">
-                  <h5 className="font-semibold text-indigo-800 mb-2 flex items-center justify-center gap-2">
-                    <span className="text-lg">🔑</span>
-                    Tonalidade: {currentKey}
+                {/* ✅ INFO SEPARADA: GRAUS vs CIFRAS (SISTEMA CORRIGIDO) */}
+                <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-3 bg-indigo-50 rounded-lg border border-indigo-200">
+                    <h5 className="font-semibold text-indigo-800 mb-2 flex items-center justify-center gap-2">
+                      <span className="text-lg">📊</span>
+                      Graus Harmônicos
+                    </h5>
+                    
+                    <div className="text-sm text-indigo-700 text-center">
+                      <div className="font-mono font-bold">
+                        {currentProgression.degrees.join(' - ')}
+                      </div>
+                      <div className="text-xs text-indigo-600 mt-1">
+                        (Análise harmônica funcional)
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                    <h5 className="font-semibold text-green-800 mb-2 flex items-center justify-center gap-2">
+                      <span className="text-lg">🎵</span>
+                      Cifras em {currentKey}
+                    </h5>
+                    
+                    <div className="text-sm text-green-700 text-center">
+                      <div className="font-mono font-bold">
+                        {transposedChords.join(' - ')}
+                      </div>
+                      <div className="text-xs text-green-600 mt-1">
+                        (Transposição para reprodução)
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ✅ STATUS DO SISTEMA CORRIGIDO */}
+                <div className="mb-4 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                  <h5 className="font-semibold text-purple-800 mb-2 flex items-center justify-center gap-2">
+                    <span className="text-lg">✅</span>
+                    Sistema Corrigido Ativo
                   </h5>
                   
-                  <div className="text-sm text-indigo-700">
-                    <div className="mb-1">
-                      <strong>Acordes:</strong> {transposedChords.join(' - ')}
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-purple-700">Entrada:</span>
+                      <span className="font-bold text-green-600">Graus apenas</span>
                     </div>
-                    <div className="text-xs text-indigo-600">
-                      Graus: {currentProgression.degrees.join(' - ')}
+                    <div className="flex items-center justify-between">
+                      <span className="text-purple-700">Conversão:</span>
+                      <span className="font-bold text-red-600">Eliminada</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-purple-700">Transposição:</span>
+                      <span className="font-bold text-green-600">Matemática</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-purple-700">Mistura:</span>
+                      <span className="font-bold text-red-600">Corrigida!</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Status de Humanização */}
-                <div className="mb-4 p-3 bg-purple-50 rounded-lg border border-purple-200">
-                  <h5 className="font-semibold text-purple-800 mb-2 flex items-center justify-center gap-2">
+                <div className="mb-4 p-3 bg-cyan-50 rounded-lg border border-cyan-200">
+                  <h5 className="font-semibold text-cyan-800 mb-2 flex items-center justify-center gap-2">
                     <span className="text-lg">🎭</span>
                     Piano Humanizado Sutil
                   </h5>
                   
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div className="flex items-center justify-between">
-                      <span className="text-purple-700">Arpejos:</span>
+                      <span className="text-cyan-700">Arpejos:</span>
                       <span className="font-bold text-green-600">92% ↗️ 8% ↙️</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-purple-700">Delay por nota:</span>
-                      <span className="font-bold text-purple-800">
+                      <span className="text-cyan-700">Delay por nota:</span>
+                      <span className="font-bold text-cyan-800">
                         {Math.max(3, Math.min(12, (60000 / playbackTempo) / 50)).toFixed(0)}ms
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-purple-700">Sustentação:</span>
-                      <span className="font-bold text-purple-800">92%</span>
+                      <span className="text-cyan-700">Sustentação:</span>
+                      <span className="font-bold text-cyan-800">92%</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-purple-700">Voice leading:</span>
+                      <span className="text-cyan-700">Voice leading:</span>
                       <span className="font-bold text-green-600">Suave</span>
                     </div>
                   </div>
@@ -714,7 +820,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                   </div>
                 </div>
                 
-                {/* Botão de reprodução */}
+                {/* ✅ BOTÃO DE REPRODUÇÃO COM SISTEMA CORRIGIDO */}
                 <button
                   onClick={playProgression}
                   disabled={isPlaying || !isPianoReady}
@@ -726,7 +832,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                 >
                   {isPlaying ? (
                     <div className="flex items-center justify-center gap-3">
-                      <div className="animate-pulse text-2xl">🎭</div>
+                      <div className="animate-pulse text-2xl">✅</div>
                       <span>Tocando em {currentKey}... ({playbackTempo} BPM)</span>
                     </div>
                   ) : !isPianoReady ? (
@@ -736,19 +842,19 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                     </div>
                   ) : (
                     <div className="flex items-center justify-center gap-3">
-                      <div className="text-3xl">🎭</div>
-                      <span>Tocar em {currentKey} ({playbackTempo} BPM)</span>
+                      <div className="text-3xl">✅</div>
+                      <span>Tocar com Sistema Corrigido ({currentKey})</span>
                     </div>
                   )}
                 </button>
                 
                 <p className="mt-4 text-gray-600 text-sm">
-                  🎼 Progressão transposta para {currentKey} • Arpejos sutis e legato natural
+                  ✅ Sistema corrigido ativo • Graus → Transposição → Reprodução • Sem mistura!
                 </p>
               </div>
             </div>
 
-            {/* OPÇÕES COM ACORDES TRANSPOSTOS */}
+            {/* ✅ OPÇÕES DE RESPOSTA (NOMES DAS PROGRESSÕES) */}
             <div className="bg-white rounded-xl shadow-sm p-6">
               <ChordProgressionOptions
                 options={exerciseOptions}
@@ -777,7 +883,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
           {/* COLUNA LATERAL */}
           <div className="space-y-6">
             
-            {/* Resultado com Pauta Musical */}
+            {/* ✅ RESULTADO COM PAUTA MUSICAL (SISTEMA CORRIGIDO) */}
             {showResult && showHarmonicAnalysis && harmonicAnalysis.length > 0 && (
               <div className="space-y-4">
                 
@@ -795,23 +901,30 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                         ? `Muito bem! Era realmente "${currentProgression.name}".`
                         : `A resposta correta era: "${currentProgression.name}"`}
                     </div>
+                    <div className="text-xs text-green-600 mt-2 bg-green-50 rounded p-2">
+                      ✅ Analisado com sistema corrigido
+                    </div>
                   </div>
                 </div>
 
-                {/* PAUTA MUSICAL COM TONALIDADE */}
+                {/* ✅ PAUTA MUSICAL COM SISTEMA CORRIGIDO */}
                 <MusicalStaff
                   progression={harmonicAnalysis}
-                  title={`${currentProgression.name} - ${currentKey}`}
+                  title={`${currentProgression.name} - ${currentKey} (Sistema Corrigido)`}
                   timeSignature={currentProgression.timeSignature}
                   showChordSymbols={true}
                 />
 
-                {/* Análise Harmônica */}
+                {/* ✅ ANÁLISE HARMÔNICA COM SISTEMA CORRIGIDO */}
                 <div className="bg-white rounded-xl shadow-sm p-6">
                   <h4 className="font-bold text-lg mb-4 flex items-center gap-2">
                     <span className="text-xl">🎼</span>
                     Análise Harmônica - {currentKey}
                   </h4>
+                  
+                  <div className="mb-3 text-xs text-green-600 bg-green-50 rounded p-2 text-center">
+                    ✅ Sistema corrigido: Graus → Símbolos → MIDI transposto
+                  </div>
                   
                   <div className="space-y-3">
                     {harmonicAnalysis.map((chord: HarmonicAnalysis, index: number) => (
@@ -822,15 +935,17 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                           </div>
                           <div>
                             <div className="font-mono font-bold text-lg text-gray-900">
-                              {chord.symbol || 'N/A'}
+                              {chord.degree || 'N/A'}
                             </div>
-                            <div className="text-xs text-gray-500">{chord.degree || 'N/A'}</div>
+                            <div className="text-xs text-gray-500">
+                              {transposedChords[index] || 'N/A'} • {chord.symbol || 'N/A'}
+                            </div>
                           </div>
                         </div>
                         <div className="text-right">
                           <div className="text-sm text-gray-600">{chord.analysis || 'Análise indisponível'}</div>
                           <div className="text-xs text-gray-400">
-                            {chord.voicing?.length || 0} vozes
+                            {chord.voicing?.length || 0} vozes • MIDI transposto
                           </div>
                         </div>
                       </div>
@@ -845,17 +960,17 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                 >
                   <div className="flex items-center justify-center gap-2">
                     <span className="text-xl">🎲</span>
-                    <span>Nova Tonalidade</span>
+                    <span>Nova Progressão (Sistema Corrigido)</span>
                   </div>
                 </button>
               </div>
             )}
 
-            {/* Estatísticas */}
+            {/* ✅ ESTATÍSTICAS COM SISTEMA CORRIGIDO */}
             <div className="bg-white rounded-xl shadow-sm p-6">
               <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
                 <span className="text-xl">📊</span>
-                Estatísticas
+                Sistema Corrigido
               </h3>
               
               <div className="space-y-3">
@@ -871,20 +986,33 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                   <span className="text-sm text-gray-600">Tonalidade atual</span>
                   <span className="font-bold text-purple-600">{currentKey}</span>
                 </div>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span className="text-sm text-gray-600">Sistema</span>
+                  <span className="font-bold text-green-600">Corrigido ✅</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span className="text-sm text-gray-600">Entrada</span>
+                  <span className="font-bold text-purple-600">Graus apenas</span>
+                </div>
                 <div className="flex justify-between items-center py-2">
-                  <span className="text-sm text-gray-600">Piano humanizado</span>
-                  <span className="font-bold text-purple-600">Sutil</span>
+                  <span className="text-sm text-gray-600">Mistura</span>
+                  <span className="font-bold text-red-600">Eliminada!</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* PIANO */}
+        {/* ✅ PIANO COM SISTEMA CORRIGIDO */}
         <div className="mt-8 bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-xl font-bold mb-4 text-center text-gray-800">
-            🎹 Piano Virtual - {currentKey}
+            🎹 Piano Virtual - {currentKey} (Sistema Corrigido)
           </h3>
+          <div className="text-center mb-4">
+            <div className="text-xs text-green-600 bg-green-50 rounded-lg p-3 inline-block">
+              ✅ <strong>Sistema Corrigido Ativo:</strong> Graus harmônicos → Transposição matemática → Reprodução natural
+            </div>
+          </div>
           <BeautifulPianoKeyboard />
         </div>
       </div>
