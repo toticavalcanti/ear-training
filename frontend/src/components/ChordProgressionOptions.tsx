@@ -1,5 +1,5 @@
 // src/components/ChordProgressionOptions.tsx - VERSÃO CORRIGIDA
-// Remove formatChordSymbol bugado e usa cifras transpostas
+// Detecta tonalidade automaticamente das cifras transpostas
 
 import React from 'react';
 
@@ -17,13 +17,13 @@ interface TransposedChordProgression {
 }
 
 interface ChordProgressionOptionsProps {
-  options: TransposedChordProgression[];  // ✅ MUDOU AQUI
+  options: TransposedChordProgression[];
   selectedAnswer: string;
   showResult: boolean;
   correctAnswer: string;
   onSelect: (progressionName: string) => void;
   disabled?: boolean;
-  currentKey?: string; // ✅ Nova prop para mostrar a tonalidade
+  currentKey?: string; // ✅ Opcional - será detectado automaticamente se não fornecido
 }
 
 const ChordProgressionOptions: React.FC<ChordProgressionOptionsProps> = ({
@@ -33,8 +33,47 @@ const ChordProgressionOptions: React.FC<ChordProgressionOptionsProps> = ({
   correctAnswer,
   onSelect,
   disabled = false,
-  currentKey = 'C' // ✅ Default C se não especificado
+  currentKey // ✅ Removido default para forçar detecção automática
 }) => {
+
+  // ✅ TONALIDADE DEFINITIVA - COM DEPENDÊNCIAS CORRETAS
+  const finalKey = React.useMemo(() => {
+    // Função para garantir formato correto da tonalidade
+    const formatKey = (key: string): string => {
+      if (!key || key.length === 0) return 'C';
+      
+      // ✅ CORREÇÃO ESPECÍFICA: Primeira maiúscula + resto minúsculo
+      const formatted = key.charAt(0).toUpperCase() + key.slice(1).toLowerCase();
+      console.log(`🔧 Formatando "${key}" → "${formatted}"`);
+      return formatted;
+    };
+
+    // Lógica de detecção movida para dentro do useMemo
+    if (options.length === 0) return 'C';
+    
+    const firstProgression = options[0];
+    if (!firstProgression?.chords || firstProgression.chords.length === 0) {
+      return currentKey || 'C';
+    }
+    
+    const firstChord = firstProgression.chords[0];
+    const match = firstChord.match(/^([A-G][b#]?)/);
+    
+    if (!match) {
+      return currentKey || 'C';
+    }
+    
+    let detectedKey = match[1];
+    console.log(`🎯 Nota bruta extraída: "${detectedKey}"`);
+    
+    // ✅ APLICAR FORMATAÇÃO CORRETA
+    detectedKey = formatKey(detectedKey);
+    
+    // Log da tonalidade final
+    console.log(`🎵 Tonalidade final: "${detectedKey}" (do acorde: ${firstChord})`);
+    
+    return detectedKey;
+  }, [options, currentKey]); // ✅ CORRIGIDO: incluindo options completo
 
   // ✅ FUNÇÃO CORRIGIDA - usa cifras já transpostas
   const formatProgressionCifras = (chords: string[]): string => {
@@ -72,16 +111,25 @@ const ChordProgressionOptions: React.FC<ChordProgressionOptionsProps> = ({
     return null;
   };
 
+  // ✅ DEBUG - Log simplificado e estável
+  React.useEffect(() => {
+    if (finalKey !== 'C') {
+      console.log(`🎹 Exibindo tonalidade: "${finalKey}" para ${options.length} opções`);
+    }
+  }, [finalKey, options.length]);
+
   return (
     <div className="space-y-4">
-      {/* ✅ Header com tonalidade */}
+      {/* ✅ Header com tonalidade CORRIGIDA */}
       <div className="text-center mb-6">
         <h3 className="text-xl font-bold text-gray-800 mb-2">
           Qual progressão harmônica você ouviu?
         </h3>
         <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg inline-block">
-          <span className="font-mono text-lg">🎹 Tonalidade: {currentKey}</span>
+          <span className="font-mono text-lg">🎹 Tonalidade: {finalKey.charAt(0).toUpperCase() + finalKey.slice(1).toLowerCase()}</span>
         </div>
+        
+        {/* ✅ DEBUG INFO REMOVIDO - causava re-renders */}
       </div>
 
       <div className="grid grid-cols-1 gap-4">
@@ -108,12 +156,9 @@ const ChordProgressionOptions: React.FC<ChordProgressionOptionsProps> = ({
                     {getResultIcon(progression.name)}
                   </div>
 
-                  {/* ✅ CIFRAS CORRIGIDAS - usa progression.chords */}
+                  {/* ✅ CIFRAS CORRIGIDAS - usa progression.chords com tonalidade correta */}
                   <div className="mb-3 p-3 bg-white bg-opacity-60 rounded-lg border">
                     <div className="text-center">
-                      <div className="text-xs text-gray-600 mb-1 uppercase tracking-wide">
-                        Progressão em {currentKey}
-                      </div>
                       <div className="font-mono font-bold text-lg text-gray-900 tracking-wide">
                         {formatProgressionCifras(progression.chords)}
                       </div>
@@ -176,14 +221,14 @@ const ChordProgressionOptions: React.FC<ChordProgressionOptionsProps> = ({
         })}
       </div>
 
-      {/* ✅ LEGENDA CORRIGIDA */}
+      {/* ✅ LEGENDA CORRIGIDA com tonalidade dinâmica */}
       <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
         <h4 className="font-semibold text-blue-900 mb-2 text-sm">
           💡 Como Interpretar
         </h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-blue-800">
           <div className="space-y-1">
-            <div><span className="font-bold">Progressão em {currentKey}:</span> Cifras na tonalidade atual</div>
+            <div><span className="font-bold">Progressão em {finalKey.charAt(0).toUpperCase() + finalKey.slice(1).toLowerCase()}:</span> Cifras na tonalidade atual</div>
             <div><span className="font-bold">Análise harmônica:</span> Graus funcionais universais</div>
           </div>
           <div className="space-y-1">
@@ -192,11 +237,14 @@ const ChordProgressionOptions: React.FC<ChordProgressionOptionsProps> = ({
           </div>
         </div>
         
-        {/* ✅ Explicação sobre transposição */}
+        {/* ✅ Explicação sobre transposição com exemplo dinâmico */}
         <div className="mt-3 pt-3 border-t border-blue-300">
           <div className="text-xs text-blue-700">
             <span className="font-semibold">🔄 Transposição:</span> Os graus harmônicos (ii7, V7, Imaj7) são universais. 
-            As cifras ({currentKey !== 'C' ? 'Dm7, G7, Cmaj7 em C' : 'Ex: Em Db seriam Ebm7, Ab7, Dbmaj7'}) mudam conforme a tonalidade.
+            As cifras {finalKey.charAt(0).toUpperCase() + finalKey.slice(1).toLowerCase() !== 'C' ? 
+              `(Ex: em C seriam diferentes)` : 
+              `(Ex: em Bb seriam Cm7, F7, Bbmaj7)`
+            } mudam conforme a tonalidade.
           </div>
         </div>
       </div>

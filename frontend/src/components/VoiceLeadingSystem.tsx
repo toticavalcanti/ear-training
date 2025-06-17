@@ -1,5 +1,53 @@
-// 📁 ARQUIVO: src/components/VoiceLeadingSystem.tsx
-// 🔧 VERSÃO CORRIGIDA - SEM MISTURA DE CIFRAS E GRAUS
+// src/components/VoiceLeadingSystem.tsx - VERSÃO FINAL CORRIGIDA
+// ✅ Nomenclatura padronizada: iim7, V7, Imaj7 (não ii7!)
+// ✅ Sistema de análise harmônica completo e funcional
+
+// ========================================
+// 🌍 DECLARAÇÕES GLOBAIS TYPESCRIPT
+// ========================================
+
+interface DebugPianoResult {
+  success: boolean;
+  data?: ChordAnalysis[] | null;
+  error?: string;
+}
+
+interface DefinitiveTransposer {
+  getRandomKey(): string;
+  getSemitoneDistance(fromKey: string, toKey: string): number;
+  transposeChord(degree: string, targetKey: string): string;
+  transposeProgression(degrees: string[], targetKey: string): string[];
+  testFlatKeys(): boolean;
+}
+
+declare global {
+  interface Window {
+    analyzeProgression?: (inputs: string[]) => ChordAnalysis[];
+    resetVoiceLeading?: () => void;
+    testConversion?: () => void;
+    formatChordSymbol?: (input: string) => string;
+    playPianoNote?: (note: string, frequency: number) => Promise<void>;
+    stopPianoNote?: (note: string) => void;
+    testCorrectedSystem?: {
+      runAll: () => boolean;
+      checkFunctions: () => boolean;
+      testNomenclature: () => boolean;
+      testConversion: () => boolean;
+      testJazzProgression: () => boolean;
+      testTransposition: () => boolean;
+    };
+    debugPiano?: {
+      runAll: () => void;
+      testAnalysis: () => DebugPianoResult;
+      testTransposition: () => void;
+      testFrequency: () => void;
+      testPiano: () => void;
+      testFlow: () => DebugPianoResult;
+      testReal: () => void;
+    };
+    definitiveTransposer?: DefinitiveTransposer;
+  }
+}
 
 // ========================================
 // 🎼 INTERFACES
@@ -10,7 +58,7 @@ export interface ChordSymbol {
   quality: string;
   extensions: string[];
   display: string;
-  degree?: string; // Grau harmônico correspondente
+  degree?: string;
 }
 
 export interface ChordAnalysis {
@@ -21,7 +69,7 @@ export interface ChordAnalysis {
 }
 
 // ========================================
-// 🎯 MAPEAMENTO DE GRAUS HARMÔNICOS
+// 🎯 MAPEAMENTO DE GRAUS HARMÔNICOS - NOMENCLATURA CORRIGIDA
 // ========================================
 
 const DEGREE_SYMBOLS: Record<string, ChordSymbol> = {
@@ -44,26 +92,43 @@ const DEGREE_SYMBOLS: Record<string, ChordSymbol> = {
   'VI': { root: 'Ab', quality: 'major', extensions: [], display: 'Ab', degree: 'VI' },
   'VII': { root: 'Bb', quality: 'major', extensions: [], display: 'Bb', degree: 'VII' },
 
-  // ========== SÉTIMAS MAIORES ==========
-  'I^maj7': { root: 'C', quality: 'major7', extensions: [], display: 'C∆7', degree: 'I^maj7' },
+  // ========== SÉTIMAS MAIORES - NOMENCLATURA PADRONIZADA ==========
   'Imaj7': { root: 'C', quality: 'major7', extensions: [], display: 'C∆7', degree: 'Imaj7' },
-  'IV^maj7': { root: 'F', quality: 'major7', extensions: [], display: 'F∆7', degree: 'IV^maj7' },
   'IVmaj7': { root: 'F', quality: 'major7', extensions: [], display: 'F∆7', degree: 'IVmaj7' },
+  'IImaj7': { root: 'D', quality: 'major7', extensions: [], display: 'D∆7', degree: 'IImaj7' },
+  'IIImaj7': { root: 'E', quality: 'major7', extensions: [], display: 'E∆7', degree: 'IIImaj7' },
+  'Vmaj7': { root: 'G', quality: 'major7', extensions: [], display: 'G∆7', degree: 'Vmaj7' },
+  'VImaj7': { root: 'A', quality: 'major7', extensions: [], display: 'A∆7', degree: 'VImaj7' },
+  'VIImaj7': { root: 'B', quality: 'major7', extensions: [], display: 'B∆7', degree: 'VIImaj7' },
+  
+  // ========== COMPATIBILIDADE COM NOTAÇÃO ANTIGA ==========
+  'I^maj7': { root: 'C', quality: 'major7', extensions: [], display: 'C∆7', degree: 'Imaj7' },
+  'IV^maj7': { root: 'F', quality: 'major7', extensions: [], display: 'F∆7', degree: 'IVmaj7' },
 
-  // ========== SÉTIMAS MENORES ==========
-  'ii7': { root: 'D', quality: 'minor7', extensions: [], display: 'Dm7', degree: 'ii7' },
-  'iii7': { root: 'E', quality: 'minor7', extensions: [], display: 'Em7', degree: 'iii7' },
-  'vi7': { root: 'A', quality: 'minor7', extensions: [], display: 'Am7', degree: 'vi7' },
-  'i7': { root: 'C', quality: 'minor7', extensions: [], display: 'Cm7', degree: 'i7' },
-  'iv7': { root: 'F', quality: 'minor7', extensions: [], display: 'Fm7', degree: 'iv7' },
+  // ========== SÉTIMAS MENORES - NOMENCLATURA CORRIGIDA ==========
+  'iim7': { root: 'D', quality: 'minor7', extensions: [], display: 'Dm7', degree: 'iim7' },
+  'iiim7': { root: 'E', quality: 'minor7', extensions: [], display: 'Em7', degree: 'iiim7' },
+  'vim7': { root: 'A', quality: 'minor7', extensions: [], display: 'Am7', degree: 'vim7' },
+  'im7': { root: 'C', quality: 'minor7', extensions: [], display: 'Cm7', degree: 'im7' },
+  'ivm7': { root: 'F', quality: 'minor7', extensions: [], display: 'Fm7', degree: 'ivm7' },
+  'vm7': { root: 'G', quality: 'minor7', extensions: [], display: 'Gm7', degree: 'vm7' },
+  
+  // ========== COMPATIBILIDADE COM NOTAÇÃO ANTIGA ==========
+  'ii7': { root: 'D', quality: 'minor7', extensions: [], display: 'Dm7', degree: 'iim7' },
+  'iii7': { root: 'E', quality: 'minor7', extensions: [], display: 'Em7', degree: 'iiim7' },
+  'vi7': { root: 'A', quality: 'minor7', extensions: [], display: 'Am7', degree: 'vim7' },
+  'i7': { root: 'C', quality: 'minor7', extensions: [], display: 'Cm7', degree: 'im7' },
+  'iv7': { root: 'F', quality: 'minor7', extensions: [], display: 'Fm7', degree: 'ivm7' },
+  'v7': { root: 'G', quality: 'minor7', extensions: [], display: 'Gm7', degree: 'vm7' },
 
   // ========== DOMINANTES ==========
   'V7': { root: 'G', quality: 'dominant', extensions: [], display: 'G7', degree: 'V7' },
   'I7': { root: 'C', quality: 'dominant', extensions: [], display: 'C7', degree: 'I7' },
-  'IV7': { root: 'F', quality: 'dominant', extensions: [], display: 'F7', degree: 'IV7' },
-  'VI7': { root: 'A', quality: 'dominant', extensions: [], display: 'A7', degree: 'VI7' },
   'II7': { root: 'D', quality: 'dominant', extensions: [], display: 'D7', degree: 'II7' },
   'III7': { root: 'E', quality: 'dominant', extensions: [], display: 'E7', degree: 'III7' },
+  'IV7': { root: 'F', quality: 'dominant', extensions: [], display: 'F7', degree: 'IV7' },
+  'VI7': { root: 'A', quality: 'dominant', extensions: [], display: 'A7', degree: 'VI7' },
+  'VII7': { root: 'B', quality: 'dominant', extensions: [], display: 'B7', degree: 'VII7' },
 
   // ========== DOMINANTES SECUNDÁRIAS ==========
   'V/ii': { root: 'A', quality: 'dominant', extensions: [], display: 'A7', degree: 'V/ii' },
@@ -86,11 +151,13 @@ const DEGREE_SYMBOLS: Record<string, ChordSymbol> = {
   'bIII7': { root: 'Eb', quality: 'dominant', extensions: [], display: 'E♭7', degree: 'bIII7' },
   'bVI7': { root: 'Ab', quality: 'dominant', extensions: [], display: 'A♭7', degree: 'bVI7' },
   'bVII7': { root: 'Bb', quality: 'dominant', extensions: [], display: 'B♭7', degree: 'bVII7' },
+  'bIImaj7': { root: 'Db', quality: 'major7', extensions: [], display: 'D♭∆7', degree: 'bIImaj7' },
 
   // ========== MEIO-DIMINUTOS ==========
-  'ii7b5': { root: 'D', quality: 'half-diminished', extensions: [], display: 'Dm7(♭5)', degree: 'ii7b5' },
+  'iim7b5': { root: 'D', quality: 'half-diminished', extensions: [], display: 'Dm7(♭5)', degree: 'iim7b5' },
   'viiø7': { root: 'B', quality: 'half-diminished', extensions: [], display: 'Bm7(♭5)', degree: 'viiø7' },
   'iiø7': { root: 'D', quality: 'half-diminished', extensions: [], display: 'Dm7(♭5)', degree: 'iiø7' },
+  'ii7b5': { root: 'D', quality: 'half-diminished', extensions: [], display: 'Dm7(♭5)', degree: 'iim7b5' },
 
   // ========== DIMINUTOS COM SÉTIMA ==========
   'vii°7': { root: 'B', quality: 'diminished7', extensions: [], display: 'Bdim7', degree: 'vii°7' },
@@ -102,42 +169,51 @@ const DEGREE_SYMBOLS: Record<string, ChordSymbol> = {
   'Isus4': { root: 'C', quality: 'sus4', extensions: [], display: 'Csus4', degree: 'Isus4' },
   'Vsus4': { root: 'G', quality: 'sus4', extensions: [], display: 'Gsus4', degree: 'Vsus4' },
 
-  // ========== EXTENSÕES AVANÇADAS ==========
+  // ========== EXTENSÕES AVANÇADAS - NOMENCLATURA PADRONIZADA ==========
   'V7alt': { root: 'G', quality: 'dominant', extensions: ['alt'], display: 'G7alt', degree: 'V7alt' },
   'V7#9': { root: 'G', quality: 'dominant', extensions: ['#9'], display: 'G7(#9)', degree: 'V7#9' },
   'V7#11': { root: 'G', quality: 'dominant', extensions: ['#11'], display: 'G7(#11)', degree: 'V7#11' },
-  'I^maj7#11': { root: 'C', quality: 'major7', extensions: ['#11'], display: 'C∆7(#11)', degree: 'I^maj7#11' },
   'Imaj7#11': { root: 'C', quality: 'major7', extensions: ['#11'], display: 'C∆7(#11)', degree: 'Imaj7#11' },
+  
+  // ========== COMPATIBILIDADE COM NOTAÇÃO ANTIGA ==========
+  'I^maj7#11': { root: 'C', quality: 'major7', extensions: ['#11'], display: 'C∆7(#11)', degree: 'Imaj7#11' },
 
-  // ========== MENORES COM 7ª MAIOR ==========
-  'i^maj7': { root: 'C', quality: 'minor-major7', extensions: [], display: 'Cm(∆7)', degree: 'i^maj7' },
+  // ========== MENORES COM 7ª MAIOR - NOMENCLATURA PADRONIZADA ==========
   'imaj7': { root: 'C', quality: 'minor-major7', extensions: [], display: 'Cm(∆7)', degree: 'imaj7' },
+  
+  // ========== COMPATIBILIDADE COM NOTAÇÃO ANTIGA ==========
+  'i^maj7': { root: 'C', quality: 'minor-major7', extensions: [], display: 'Cm(∆7)', degree: 'imaj7' },
+
+  // ========== SEXTAS ==========
+  'I6': { root: 'C', quality: 'major6', extensions: [], display: 'C6', degree: 'I6' },
+  'vi6': { root: 'A', quality: 'minor6', extensions: [], display: 'Am6', degree: 'vi6' },
+  'IV6': { root: 'F', quality: 'major6', extensions: [], display: 'F6', degree: 'IV6' },
 };
 
 // ========================================
-// 🎵 MAPEAMENTO DE CIFRAS PARA GRAUS
+// 🎵 MAPEAMENTO DE CIFRAS PARA GRAUS - NOMENCLATURA CORRIGIDA
 // ========================================
 
 const CHORD_TO_DEGREE_MAP: Record<string, string> = {
-  // Em Dó Maior - Tríades e Tétrades
-  'C': 'I', 'Cmaj': 'I', 'Cmaj7': 'I^maj7', 'C∆7': 'I^maj7', 'CMaj7': 'I^maj7',
-  'Dm': 'ii', 'Dm7': 'ii7',
-  'Em': 'iii', 'Em7': 'iii7', 'Em7b5': 'iiø7', 'Em7(b5)': 'iiø7',
-  'F': 'IV', 'Fmaj': 'IV', 'Fmaj7': 'IV^maj7', 'F∆7': 'IV^maj7', 'FMaj7': 'IV^maj7',
-  'G': 'V', 'G7': 'V7', 'Gm': 'v', 'Gm7': 'v7',
-  'Am': 'vi', 'Am7': 'vi7',
+  // Em Dó Maior - Tríades e Tétrades - NOMENCLATURA CORRIGIDA
+  'C': 'I', 'Cmaj': 'I', 'Cmaj7': 'Imaj7', 'C∆7': 'Imaj7', 'CMaj7': 'Imaj7',
+  'Dm': 'ii', 'Dm7': 'iim7',
+  'Em': 'iii', 'Em7': 'iiim7', 'Em7b5': 'iiø7', 'Em7(b5)': 'iiø7',
+  'F': 'IV', 'Fmaj': 'IV', 'Fmaj7': 'IVmaj7', 'F∆7': 'IVmaj7', 'FMaj7': 'IVmaj7',
+  'G': 'V', 'G7': 'V7', 'Gm': 'v', 'Gm7': 'vm7',
+  'Am': 'vi', 'Am7': 'vim7',
   'Bdim': 'vii°', 'Bm7b5': 'viiø7', 'Bm7(b5)': 'viiø7',
   
-  // Em Dó Menor
-  'Cm': 'i', 'Cm7': 'i7', 'Cm(maj7)': 'i^maj7', 'Cm(∆7)': 'i^maj7',
+  // Em Dó Menor - NOMENCLATURA CORRIGIDA
+  'Cm': 'i', 'Cm7': 'im7', 'Cm(maj7)': 'imaj7', 'Cm(∆7)': 'imaj7',
   'Ddim': 'ii°', 'Dm7b5': 'iiø7', 'Dm7(b5)': 'iiø7',
-  'Eb': 'III', 'EbMaj7': 'bIII^maj7', 'Eb7': 'bIII7',
-  'Fm': 'iv', 'Fm7': 'iv7',
-  'Ab': 'VI', 'AbMaj7': 'bVI^maj7', 'Ab7': 'bVI7',
-  'Bb': 'VII', 'BbMaj7': 'bVII^maj7', 'Bb7': 'bVII7',
+  'Eb': 'III', 'EbMaj7': 'IIImaj7', 'Eb7': 'III7',
+  'Fm': 'iv', 'Fm7': 'ivm7',
+  'Ab': 'VI', 'AbMaj7': 'VImaj7', 'Ab7': 'VI7',
+  'Bb': 'VII', 'BbMaj7': 'VIImaj7', 'Bb7': 'VII7',
   
-  // Empréstimos modais
-  'Db': 'bII', 'Db7': 'bII7', 'DbMaj7': 'bII^maj7',
+  // Empréstimos modais - NOMENCLATURA CORRIGIDA
+  'Db': 'bII', 'Db7': 'bII7', 'DbMaj7': 'bIImaj7',
   
   // Dominantes (contexto determina se são diatônicos ou secundários)
   'C7': 'I7',     // Por padrão I7, mas pode ser V7/IV dependendo do contexto
@@ -146,6 +222,9 @@ const CHORD_TO_DEGREE_MAP: Record<string, string> = {
   'F7': 'IV7',
   'A7': 'VI7',    // Por padrão VI7, mas pode ser V7/ii dependendo do contexto
   'B7': 'VII7',   // Por padrão VII7, mas pode ser V7/iii dependendo do contexto
+  
+  // Sextas
+  'C6': 'I6', 'Am6': 'vi6', 'F6': 'IV6',
 };
 
 // ========================================
@@ -153,8 +232,8 @@ const CHORD_TO_DEGREE_MAP: Record<string, string> = {
 // ========================================
 
 function isDegreeNotation(input: string): boolean {
-  // Detecta se é grau (contém números romanos ou simbolos específicos)
-  const degreePattern = /^(b?[IVX]+|[iv]+|vii°|iiø|°|ø|\^maj|maj|sus|alt|add|#|b|\d+|\/)/;
+  // Detecta se é grau (contém números romanos ou símbolos específicos)
+  const degreePattern = /^(b?[IVX]+|[ivx]+|vii°|iiø|°|ø|maj|sus|alt|add|#|b|\d+|\/)/;
   return degreePattern.test(input);
 }
 
@@ -216,11 +295,17 @@ function chordSymbolToDegree(chordSymbol: string): string {
   
   // Ajustar qualidade do acorde
   if (chordSymbol.includes('m') && !chordSymbol.includes('maj')) {
-    return baseDegree.toLowerCase(); // Menor
+    if (chordSymbol.includes('7')) {
+      return baseDegree.toLowerCase() + 'm7'; // iim7, vim7, etc.
+    }
+    return baseDegree.toLowerCase(); // ii, vi, etc.
   }
   
   if (chordSymbol.includes('7')) {
-    return baseDegree + '7';
+    if (chordSymbol.includes('maj') || chordSymbol.includes('∆')) {
+      return baseDegree + 'maj7'; // Imaj7, IVmaj7, etc.
+    }
+    return baseDegree + '7'; // V7, I7, etc.
   }
   
   return baseDegree;
@@ -501,15 +586,15 @@ export function formatChordSymbol(input: string): string {
 
 export function testConversion() {
   const testCases = [
-    // Graus (devem passar direto)
-    'I', 'ii7', 'V7', 'vi', 'iii7', 'IV^maj7',
+    // Graus (devem passar direto) - NOMENCLATURA CORRIGIDA
+    'I', 'iim7', 'V7', 'vi', 'iiim7', 'IVmaj7',
     // Cifras (devem ser convertidas)
     'C', 'Dm7', 'G7', 'Am', 'Em7', 'FMaj7',
     // Casos complexos
     'V7/ii', 'A7', 'bVII', 'Bb', 'C7sus4'
   ];
   
-  console.log('🧪 === TESTE DE CONVERSÃO ===');
+  console.log('🧪 === TESTE DE CONVERSÃO (NOMENCLATURA CORRIGIDA) ===');
   testCases.forEach(test => {
     const degree = convertInputToDegree(test);
     const symbol = DEGREE_SYMBOLS[degree];
@@ -517,7 +602,23 @@ export function testConversion() {
   });
 }
 
+// ========================================
+// 🌍 EXPOSIÇÃO GLOBAL E INICIALIZAÇÃO
+// ========================================
+
 // Executar teste automaticamente em desenvolvimento
-if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-  // testConversion();
+if (typeof window !== 'undefined') {
+  // ✅ EXPOR FUNÇÕES GLOBALMENTE - TIPOS SEGUROS
+  window.analyzeProgression = analyzeProgression;
+  window.resetVoiceLeading = resetVoiceLeading;
+  window.testConversion = testConversion;
+  window.formatChordSymbol = formatChordSymbol;
+  
+  console.log('🎼 VoiceLeadingSystem carregado e funções expostas globalmente');
+  console.log('✅ Nomenclatura corrigida: iim7, V7, Imaj7 (não ii7!)');
+  console.log('🔧 TypeScript: Tipos seguros, sem any');
+  
+  if (process.env.NODE_ENV === 'development') {
+    // testConversion();
+  }
 }
