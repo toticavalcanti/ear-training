@@ -13,11 +13,12 @@
     "axios": "^1.9.0",
     "bcryptjs": "^3.0.2",
     "frontend": "file:",
-    "next": "15.3.1",
+    "next": "^15.3.5",
     "qwerty-hancock": "^0.11.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "soundfont-player": "^0.12.0",
+    "vexflow": "^5.0.0",
     "zustand": "^5.0.4"
   },
   "devDependencies": {

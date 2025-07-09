@@ -1,9 +1,9 @@
-// src/components/ChordProgressionExercise.tsx - VERSÃO COMPLETA CORRIGIDA
+// src/components/ChordProgressionExercise.tsx - VERSÃO CORRIGIDA E OTIMIZADA
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import BeautifulPianoKeyboard from './BeautifulPianoKeyboard';
-import MusicalStaff from './MusicalStaff';
+import VexFlowMusicalStaff from './VexFlowMusicalStaff';
 import ChordProgressionOptions from './ChordProgressionOptions';
 import { 
   analyzeProgression, 
@@ -11,7 +11,7 @@ import {
 } from './VoiceLeadingSystem';
 import { createRandomizedExercise } from '@/utils/keyTransposition';
 
-// ✅ INTERFACES PARA GAMIFICAÇÃO (mesmas dos intervalos)
+// ✅ INTERFACES PARA GAMIFICAÇÃO
 interface SessionResult {
   exerciseType: string;
   difficulty: string;
@@ -108,7 +108,7 @@ interface Badge {
   unlockedAt: Date;
 }
 
-// ✅ PROGRESS SERVICE (mesmo dos intervalos)
+// ✅ PROGRESS SERVICE
 class ProgressService {
   private baseUrl: string;
 
@@ -207,6 +207,14 @@ interface ChordProgressionExerciseProps {
     expected: string;
     timeSpent: number;
   }) => void;
+}
+
+// ✅ TIPOS PARA FUNÇÕES DO PIANO (window)
+declare global {
+  interface Window {
+    playPianoNote?: (note: string, frequency: number) => Promise<void>;
+    stopPianoNote?: (note: string) => void;
+  }
 }
 
 // Services
@@ -326,7 +334,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     return `${note}${octave}`;
   }, []);
 
-  // 🎹 FUNÇÃO DE REPRODUÇÃO CORRIGIDA - ELIMINA INCONSISTÊNCIA ÁUDIO-VISUAL
+  // 🎹 FUNÇÃO DE REPRODUÇÃO
   const playProgression = useCallback(async () => {
     if (!currentProgression || !isPianoReady) {
       console.log('🎹 Piano ainda não está pronto ou progressão não definida');
@@ -337,7 +345,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     resetVoiceLeading();
 
     try {
-      console.log(`🎼 === REPRODUÇÃO CORRIGIDA INICIADA ===`);
+      console.log(`🎼 === REPRODUÇÃO INICIADA ===`);
       console.log(`🎯 Progressão: ${currentProgression.name}`);
       console.log(`🔑 Tonalidade: ${currentKey}`);
 
@@ -354,18 +362,12 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
       const pauseBetweenChords = Math.max(50, chordDuration * 0.05);
       const noteOverlap = chordDuration * 0.92;
       
-      // 🎼 ANÁLISE HARMÔNICA CORRIGIDA - USA ACORDES TRANSPOSTOS
+      // 🎼 ANÁLISE HARMÔNICA
       let analysis: HarmonicAnalysis[] = [];
       try {
-        // ✅ CORREÇÃO CRÍTICA: Usar os acordes já transpostos em vez dos graus originais
-        console.log(`🎯 Usando acordes transpostos: ${transposedChords.join(' - ')}`);
-        
-        // Converter acordes transpostos para análise harmônica
         analysis = transposedChords.map((chord, index) => {
-          // Extrair nota fundamental do acorde (exemplo: "Gb7" -> "Gb")
           const root = chord.match(/^[A-G][b#]?/)?.[0] || 'C';
           
-          // Converter para MIDI (C4 = 60)
           const noteToMidi: Record<string, number> = {
             'C': 60, 'C#': 61, 'Db': 61,
             'D': 62, 'D#': 63, 'Eb': 63,
@@ -382,59 +384,43 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
           let voicing: number[] = [];
           
           if (chord.includes('m7♭5') || chord.includes('m7b5')) {
-            // Meio-diminuto: 1 b3 b5 b7
             voicing = [rootMidi, rootMidi + 3, rootMidi + 6, rootMidi + 10];
           } else if (chord.includes('dim7')) {
-            // Diminuto: 1 b3 b5 bb7
             voicing = [rootMidi, rootMidi + 3, rootMidi + 6, rootMidi + 9];
-          } else if (chord.includes('maj7')) {
-            // Acorde maior com sétima maior: 1 3 5 7
+          } else if (chord.includes('maj7') || chord.includes('∆7')) {
             voicing = [rootMidi, rootMidi + 4, rootMidi + 7, rootMidi + 11];
           } else if (chord.includes('m7')) {
-            // Acorde menor com sétima: 1 b3 5 b7
             voicing = [rootMidi, rootMidi + 3, rootMidi + 7, rootMidi + 10];
           } else if (chord.includes('7alt')) {
-            // Acorde alterado: 1 3 b7 b13
             voicing = [rootMidi, rootMidi + 4, rootMidi + 10, rootMidi + 20];
           } else if (chord.includes('sus4')) {
-            // Acorde suspenso: 1 4 5
             voicing = [rootMidi, rootMidi + 5, rootMidi + 7];
           } else if (chord.includes('sus2')) {
-            // Acorde suspenso: 1 2 5
             voicing = [rootMidi, rootMidi + 2, rootMidi + 7];
           } else if (chord.includes('add9')) {
-            // Acorde com nona: 1 3 5 9
             voicing = [rootMidi, rootMidi + 4, rootMidi + 7, rootMidi + 14];
           } else if (chord.includes('13')) {
-            // Acorde de décima terceira: 1 3 7 9 13
             voicing = [rootMidi, rootMidi + 4, rootMidi + 11, rootMidi + 14, rootMidi + 21];
           } else if (chord.includes('11')) {
-            // Acorde de décima primeira: 1 3 7 11
             voicing = [rootMidi, rootMidi + 4, rootMidi + 10, rootMidi + 17];
           } else if (chord.includes('9')) {
-            // Acorde de nona: 1 3 7 9
             voicing = [rootMidi, rootMidi + 4, rootMidi + 10, rootMidi + 14];
           } else if (chord.includes('7')) {
-            // Acorde dominante: 1 3 5 b7
             voicing = [rootMidi, rootMidi + 4, rootMidi + 7, rootMidi + 10];
           } else if (chord.includes('6')) {
-            // Acorde com sexta: 1 3 5 6
             voicing = [rootMidi, rootMidi + 4, rootMidi + 7, rootMidi + 9];
           } else if (chord.includes('m')) {
-            // Acorde menor: 1 b3 5
             voicing = [rootMidi, rootMidi + 3, rootMidi + 7];
           } else if (chord.includes('+')) {
-            // Acorde aumentado: 1 3 #5
             voicing = [rootMidi, rootMidi + 4, rootMidi + 8];
           } else {
-            // Acorde maior: 1 3 5
             voicing = [rootMidi, rootMidi + 4, rootMidi + 7];
           }
           
-          // Garantir que as notas estejam em uma oitava razoável (C3-C6)
+          // Garantir que as notas estejam em uma oitava razoável
           voicing = voicing.map(note => {
-            while (note < 48) note += 12; // Não muito grave
-            while (note > 84) note -= 12; // Não muito agudo
+            while (note < 48) note += 12;
+            while (note > 84) note -= 12;
             return note;
           });
           
@@ -446,12 +432,11 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
           };
         });
         
-        console.log(`✅ Análise harmônica corrigida gerada para ${analysis.length} acordes`);
+        console.log(`✅ Análise harmônica gerada para ${analysis.length} acordes`);
         
       } catch (analysisError) {
-        console.warn('⚠️ Erro na análise harmônica corrigida, usando fallback:', analysisError);
+        console.warn('⚠️ Erro na análise harmônica:', analysisError);
         
-        // Fallback usando o sistema original caso dê erro
         try {
           const originalAnalysis = analyzeProgression(currentProgression.degrees);
           analysis = originalAnalysis.map(chord => ({
@@ -459,7 +444,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
             voicing: chord.voicing.map(note => note + semitoneOffset)
           }));
         } catch (fallbackError) {
-          console.warn('⚠️ Erro no fallback, usando voicings simples:', fallbackError);
+          console.warn('⚠️ Erro no fallback:', fallbackError);
           
           const simpleFallback = currentProgression.degrees.map((degree, index) => ({
             symbol: degree,
@@ -472,13 +457,9 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
         }
       }
 
-      // ✅ LOGS DE DEBUG PARA VERIFICAR CONSISTÊNCIA
-      console.log(`🔍 === VERIFICAÇÃO DE CONSISTÊNCIA CORRIGIDA ===`);
+      console.log(`🔍 === VERIFICAÇÃO DE CONSISTÊNCIA ===`);
       console.log(`🎵 Visual (transposedChords): ${transposedChords.join(' - ')}`);
       console.log(`🎹 Áudio (analysis): ${analysis.map(a => a.symbol).join(' - ')}`);
-      console.log(`🎯 Progressão original: ${currentProgression.degrees.join(' - ')}`);
-      console.log(`🔑 Tonalidade: ${currentKey}`);
-      console.log(`📊 Offset MIDI: +${semitoneOffset}`);
 
       if (analysis.length === 0) {
         console.error('❌ Não foi possível gerar análise harmônica');
@@ -553,7 +534,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
       globalActiveNotes.clear();
 
       setIsPlaying(false);
-      console.log(`✅ Progressão corrigida concluída em ${currentKey}`);
+      console.log(`✅ Progressão concluída em ${currentKey}`);
 
     } catch (err: unknown) {
       console.error('❌ Erro ao tocar progressão:', err);
@@ -620,7 +601,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
       console.log(`💾 Enviando dados para backend calcular pontuação...`);
 
       const sessionData: SessionResult = {
-        exerciseType: 'chord-progressions', // ✅ NOVO TIPO
+        exerciseType: 'chord-progressions',
         difficulty,
         totalQuestions: 1,
         correctAnswers: correct ? 1 : 0,
@@ -812,7 +793,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
             {difficulty === 'beginner' ? 'Iniciante' : difficulty === 'intermediate' ? 'Intermediário' : 'Avançado'}
           </div>
           <div className="text-xs text-green-600 bg-green-50 rounded-lg p-3">
-            ✅ Sistema corrigido • Áudio-visual sincronizado
+            ✅ Sistema com VexFlow • Áudio-visual sincronizado
           </div>
         </div>
       </div>
@@ -846,7 +827,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-7xl mx-auto">
         
-        {/* ✅ HEADER CORRIGIDO SEM SPOILERS */}
+        {/* HEADER */}
         <div className="bg-white rounded-lg shadow-sm mb-6 p-6">
           <div className="text-center">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -863,13 +844,13 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                 Ouça progressões harmônicas e identifique pelo nome
                 <br />
                 <span className="text-purple-600 font-medium">
-                  🎹 Tocando em {currentKey} • Áudio-visual sincronizado
+                  🎹 Tocando em {currentKey} • VexFlow ativo
                 </span>
               </div>
             </div>
           </div>
 
-          {/* ✅ PROGRESSO DA SESSÃO COM GAMIFICAÇÃO */}
+          {/* PROGRESSO DA SESSÃO */}
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-6 gap-3">
             <div className="bg-green-50 border border-green-200 rounded-md px-3 py-2 text-center">
               <div className="text-green-700 text-xs font-medium">Sessão</div>
@@ -901,7 +882,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
             )}
           </div>
 
-          {/* ✅ TENDÊNCIA DA SESSÃO */}
+          {/* TENDÊNCIA DA SESSÃO */}
           {sessionHistory.length >= 3 && (
             <div className="mt-4 pt-4 border-t border-gray-200">
               <div className="text-sm font-medium text-gray-700 mb-3">📈 Tendência da Sessão</div>
@@ -935,7 +916,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
           {/* COLUNA PRINCIPAL */}
           <div className="xl:col-span-2 space-y-6">
             
-            {/* ✅ PLAYER DE ÁUDIO LIMPO (SEM SPOILERS) */}
+            {/* PLAYER DE ÁUDIO */}
             <div className="bg-white rounded-xl shadow-sm p-6">
               <div className="text-center">
                 {!isPianoReady && (
@@ -981,7 +962,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                   </div>
                 </div>
                 
-                {/* ✅ BOTÃO DE REPRODUÇÃO SIMPLES */}
+                {/* BOTÃO DE REPRODUÇÃO */}
                 <button
                   onClick={playProgression}
                   disabled={isPlaying || !isPianoReady}
@@ -1021,7 +1002,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
               </div>
             </div>
 
-            {/* ✅ OPÇÕES DE RESPOSTA (NOMES DAS PROGRESSÕES) */}
+            {/* OPÇÕES DE RESPOSTA */}
             <div className="bg-white rounded-xl shadow-sm p-6">
               <ChordProgressionOptions
                 options={exerciseOptions}
@@ -1063,7 +1044,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
           {/* COLUNA LATERAL */}
           <div className="space-y-6">
             
-            {/* ✅ ESTATÍSTICAS COM GAMIFICAÇÃO */}
+            {/* ESTATÍSTICAS */}
             <div className="bg-white rounded-xl shadow-sm p-6">
               <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
                 <span className="text-xl">📊</span>
@@ -1093,7 +1074,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
               </div>
             </div>
 
-            {/* ✅ FEEDBACK APENAS APÓS RESPONDER */}
+            {/* FEEDBACK APENAS APÓS RESPONDER */}
             {showResult && (
               <div className="space-y-4">
                 
@@ -1114,7 +1095,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                   </div>
                 </div>
 
-                {/* ✅ AGORA SIM: GRAUS E CIFRAS APÓS RESPONDER */}
+                {/* ANÁLISE DA PROGRESSÃO */}
                 <div className="bg-white rounded-xl shadow-sm p-6">
                   <h4 className="font-bold text-lg mb-4 flex items-center gap-2">
                     <span className="text-xl">🔍</span>
@@ -1152,11 +1133,11 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                   </div>
 
                   <div className="text-xs text-gray-500 text-center p-2 bg-gray-50 rounded">
-                    ✅ Informações reveladas após responder • Áudio-visual 100% sincronizado
+                    ✅ Informações reveladas após responder • VexFlow ativo
                   </div>
                 </div>
 
-                {/* ✅ PONTUAÇÃO DO BACKEND */}
+                {/* PONTUAÇÃO DO BACKEND */}
                 {backendResult && backendResult.sessionResults.pointsBreakdown && (
                   <div className="bg-white rounded-xl shadow-sm p-6">
                     <div className="text-center mb-4">
@@ -1229,13 +1210,16 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                   </div>
                 )}
 
-                {/* ✅ PAUTA MUSICAL COM SISTEMA CORRIGIDO */}
+                {/* ✅ PAUTA MUSICAL COM VEXFLOW */}
                 {showHarmonicAnalysis && harmonicAnalysis.length > 0 && (
-                  <MusicalStaff
+                  <VexFlowMusicalStaff
                     progression={harmonicAnalysis}
                     title={`${currentProgression.name} - ${currentKey}`}
                     timeSignature={currentProgression.timeSignature}
                     showChordSymbols={true}
+                    showRomanNumerals={true}
+                    width={700}
+                    height={250}
                   />
                 )}
 
@@ -1298,7 +1282,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
           </div>
         </div>
 
-        {/* ✅ PIANO */}
+        {/* PIANO */}
         <div className="mt-8 bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-xl font-bold mb-4 text-center text-gray-800">
             🎹 Piano Virtual - {currentKey}
@@ -1306,7 +1290,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
           <BeautifulPianoKeyboard />
         </div>
 
-        {/* ✅ ERRO DE BACKEND */}
+        {/* ERRO DE BACKEND */}
         {backendError && (
           <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
             <div className="text-yellow-800 font-medium text-sm">
