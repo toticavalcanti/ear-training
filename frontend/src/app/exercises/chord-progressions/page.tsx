@@ -1,302 +1,392 @@
-// frontend/src/app/exercises/chord-progressions/page.tsx - VERSÃO CORRIGIDA E COMPLETA
+// src/app/exercises/chord-progressions/page.tsx
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import Link from 'next/link';
 import Loading from '@/components/Loading';
-import ChordProgressionDifficultyPage from '@/components/ChordProgressionDifficultyPage';
-import ChordProgressionExercise from '@/components/ChordProgressionExercise';
-import { progressService, SessionResult, UpdateProgressResponse } from '@/lib/progressService'; // ✅ IMPORTADO
+import dynamic from 'next/dynamic';
+
+// Import dinâmico para evitar problemas de SSR
+const ChordProgressionExercise = dynamic(
+  () => import('../../../components/ChordProgressionExercise'),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-6xl mb-4">🎼</div>
+          <div className="text-xl font-semibold text-gray-700">Carregando exercício...</div>
+        </div>
+      </div>
+    )
+  }
+);
 
 type Difficulty = 'beginner' | 'intermediate' | 'advanced';
 
-const ChordProgressionsPage: React.FC = () => {
+interface DifficultyOption {
+  value: Difficulty;
+  label: string;
+  description: string;
+  icon: string;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  examples: string[];
+}
+
+const DIFFICULTY_OPTIONS: DifficultyOption[] = [
+  {
+    value: 'beginner',
+    label: 'Iniciante',
+    description: 'Progressões básicas e populares',
+    icon: '🌱',
+    color: 'text-green-700',
+    bgColor: 'bg-green-50',
+    borderColor: 'border-green-200',
+    examples: ['I-V-vi-IV', 'ii-V-I', 'vi-IV-I-V']
+  },
+  {
+    value: 'intermediate',
+    label: 'Intermediário',
+    description: 'Progressões com acordes de sétima e dominantes secundárias',
+    icon: '🎯',
+    color: 'text-yellow-700',
+    bgColor: 'bg-yellow-50',
+    borderColor: 'border-yellow-200',
+    examples: ['I^maj7-vi7-ii7-V7', 'vi-IV-I-V7', 'iii7-VI7-ii7-V7']
+  },
+  {
+    value: 'advanced',
+    label: 'Avançado',
+    description: 'Progressões complexas com empréstimos modais e jazz',
+    icon: '🚀',
+    color: 'text-red-700',
+    bgColor: 'bg-red-50',
+    borderColor: 'border-red-200',
+    examples: ['I^maj7-iii7-VI7-ii7-V7', 'i-bVI-bVII-iv', 'IVmaj7-V7sus4-vi7-iii7']
+  }
+];
+
+export default function ChordProgressionsPage() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | null>(null);
-  const [showExercise, setShowExercise] = useState<boolean>(false);
+  const [isExerciseStarted, setIsExerciseStarted] = useState<boolean>(false);
+  const [exerciseCount, setExerciseCount] = useState(0);
+  const [correctCount, setCorrectCount] = useState(0);
 
-  // ✅ ESTADOS PARA CONTROLAR O FEEDBACK DA GAMIFICAÇÃO
-  const [lastResult, setLastResult] = useState<{ correct: boolean, userAnswer: string, expected: string } | null>(null);
-  const [gamificationFeedback, setGamificationFeedback] = useState<UpdateProgressResponse | null>(null);
+  // Loading state
+  if (isLoading) {
+    return <Loading message="Verificando autenticação..." fullScreen />;
+  }
 
-  const handleSelectDifficulty = (difficulty: Difficulty) => {
-    // Verificar se o usuário tem permissão para o nível
+  // Auth check
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50">
+        <div className="max-w-md w-full mx-auto p-6">
+          <div className="bg-white rounded-xl shadow-lg p-8 text-center">
+            <div className="bg-yellow-100 w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-4">
+              <span className="text-yellow-600 text-2xl">🔒</span>
+            </div>
+            <h1 className="text-2xl font-bold text-gray-800 mb-4">Acesso Restrito</h1>
+            <p className="text-gray-600 mb-6">
+              Você precisa estar logado para acessar os exercícios de progressões de acordes.
+            </p>
+            <div className="space-y-3">
+              <Link
+                href="/auth/login"
+                className="w-full bg-indigo-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-indigo-700 transition-colors block"
+              >
+                Fazer Login
+              </Link>
+              <Link
+                href="/auth/register"
+                className="w-full border border-indigo-600 text-indigo-600 py-3 px-4 rounded-lg font-medium hover:bg-indigo-50 transition-colors block"
+              >
+                Criar Conta Gratuita
+              </Link>
+              <Link
+                href="/dashboard"
+                className="text-gray-500 hover:text-gray-700 text-sm block"
+              >
+                ← Voltar ao Dashboard
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const handleStartExercise = (difficulty: Difficulty) => {
+    // Verificar se o usuário tem acesso ao nível
     if ((difficulty === 'intermediate' || difficulty === 'advanced') && user?.subscription !== 'premium') {
-      alert('Você precisa de uma assinatura premium para acessar este nível.');
+      alert('Você precisa de uma assinatura premium para acessar os níveis intermediário e avançado.');
       return;
     }
-    
-    console.log(`🎯 Nível selecionado: ${difficulty}`);
+
+    console.log('Iniciando exercício de progressões com dificuldade:', difficulty);
     setSelectedDifficulty(difficulty);
-    setShowExercise(true);
+    setIsExerciseStarted(true);
+    setExerciseCount(0);
+    setCorrectCount(0);
   };
 
-  const handleBackToSelection = () => {
-    console.log('🔙 Voltando para seleção de dificuldade');
-    setShowExercise(false);
-    setSelectedDifficulty(null);
-    setGamificationFeedback(null); // Limpa o feedback ao voltar
-    setLastResult(null);
-  };
-
-  // ✅ FUNÇÃO COMPLETA COM LÓGICA DE GAMIFICAÇÃO
-  const handleExerciseComplete = async (result: {
+  const handleExerciseComplete = (result: {
     correct: boolean;
     userAnswer: string;
     expected: string;
     timeSpent: number;
   }) => {
-    console.log('🎯 === EXERCÍCIO COMPLETADO ===');
-    console.log(`✅ Correto: ${result.correct}`);
-    console.log(`📝 Resposta do usuário: "${result.userAnswer}"`);
-    console.log(`🎯 Resposta esperada: "${result.expected}"`);
-    console.log(`⏱️ Tempo gasto: ${(result.timeSpent / 1000).toFixed(1)}s`);
-    console.log(`📊 Nível: ${selectedDifficulty}`);
-
-    setLastResult(result); // Guarda o resultado para exibição
-
-    if (selectedDifficulty) {
-      const sessionData: SessionResult = {
-        exerciseType: 'chord-progressions',
-        difficulty: selectedDifficulty,
-        totalQuestions: 1,
-        correctAnswers: result.correct ? 1 : 0,
-        timeSpent: result.timeSpent / 1000,
-        averageResponseTime: result.timeSpent / 1000,
-      };
-
-      try {
-        console.log('💾 Enviando dados da sessão para o backend...', sessionData);
-        const gamificationResult = await progressService.updateProgress(sessionData);
-        console.log('🏆 Resultado da Gamificação Recebido:', gamificationResult);
-        setGamificationFeedback(gamificationResult); // Salva o feedback para mostrar na UI
-      } catch (error) {
-        console.error("❌ Erro ao salvar o progresso da gamificação:", error);
-      }
+    console.log('Chord progression exercise result:', result);
+    setExerciseCount(prev => prev + 1);
+    if (result.correct) {
+      setCorrectCount(prev => prev + 1);
     }
   };
 
-  // VALIDAÇÃO: Guarda de Carregamento
-  if (isLoading) {
-    return (
-      <Loading 
-        message="🔐 Verificando autenticação..." 
-        fullScreen 
-      />
-    );
-  }
+  const handleBackToSelection = () => {
+    console.log('Voltando para seleção de dificuldade...');
+    setIsExerciseStarted(false);
+    setSelectedDifficulty(null);
+    setExerciseCount(0);
+    setCorrectCount(0);
+  };
 
-  // VALIDAÇÃO: Guarda de Autenticação
-  if (!isAuthenticated) {
+  // Se o exercício já começou, renderizar o componente do exercício
+  if (isExerciseStarted && selectedDifficulty) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center p-8 bg-white rounded-lg shadow-md max-w-md w-full">
-          <div className="text-6xl mb-4">🔒</div>
-          <h1 className="text-2xl font-bold mb-4 text-gray-900">Acesso Restrito</h1>
-          <p className="mb-6 text-gray-600">
-            Você precisa estar logado para acessar os exercícios de progressões harmônicas.
-          </p>
-          <div className="space-y-3">
-            <Link 
-              href="/auth/login" 
-              className="block w-full bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-            >
-              🔑 Fazer Login
-            </Link>
-            <Link 
-              href="/auth/register" 
-              className="block w-full bg-gray-100 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-            >
-              📝 Criar Conta
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ✅ SELEÇÃO DE DIFICULDADE (Sem alterações)
-  if (!showExercise || !selectedDifficulty) {
-    return (
-        <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50">
+        {/* Header com botão de voltar */}
         <div className="bg-white shadow-sm border-b">
-          <div className="max-w-4xl mx-auto px-4 py-6">
-            <div className="text-center">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                🎼 Exercícios de Progressões Harmônicas
-              </h1>
-              <p className="text-gray-600">
-                Sistema corrigido • Graus harmônicos puros • Sem mistura
-              </p>
-              <div className="mt-4 text-sm text-green-600 bg-green-50 rounded-lg p-3 inline-block">
-                ✅ <strong>Sistema Corrigido:</strong> Agora trabalha exclusivamente com graus harmônicos
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              <button
+                onClick={handleBackToSelection}
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                <span className="font-medium">Voltar à seleção</span>
+              </button>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🎼</span>
+                <span className="font-bold text-lg text-gray-900">Progressões de Acordes</span>
+              </div>
+              
+              <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                selectedDifficulty === 'beginner' ? 'bg-green-100 text-green-800' :
+                selectedDifficulty === 'intermediate' ? 'bg-yellow-100 text-yellow-800' :
+                'bg-red-100 text-red-800'
+              }`}>
+                {DIFFICULTY_OPTIONS.find(opt => opt.value === selectedDifficulty)?.label}
               </div>
             </div>
           </div>
         </div>
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="text-2xl">👤</div>
-                <div>
-                  <div className="font-medium text-blue-900">
-                    Olá, {user?.name || user?.email || 'Usuário'}!
-                  </div>
-                  <div className="text-sm text-blue-700">
-                    Assinatura: <span className="font-medium capitalize">{user?.subscription || 'Gratuita'}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-sm text-blue-700">Sistema</div>
-                <div className="font-bold text-green-600">✅ Corrigido</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="max-w-4xl mx-auto px-4">
-          <ChordProgressionDifficultyPage 
-            onSelectDifficulty={handleSelectDifficulty}
-          />
-        </div>
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
-            <h3 className="text-lg font-bold text-purple-900 mb-4 flex items-center gap-2">
-              🔧 O que foi corrigido?
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="text-green-500 text-xl">✅</div>
-                  <div>
-                    <div className="font-medium text-purple-900">Sistema puramente baseado em graus</div>
-                    <div className="text-sm text-purple-700">Não converte mais cifras automaticamente</div>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="text-green-500 text-xl">✅</div>
-                  <div>
-                    <div className="font-medium text-purple-900">Transposição matemática</div>
-                    <div className="text-sm text-purple-700">Graus → Intervalos → Cifras na tonalidade alvo</div>
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="text-green-500 text-xl">✅</div>
-                  <div>
-                    <div className="font-medium text-purple-900">Separação clara</div>
-                    <div className="text-sm text-purple-700">Graus para análise, cifras para exibição</div>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="text-green-500 text-xl">✅</div>
-                  <div>
-                    <div className="font-medium text-purple-900">Voice leading otimizado</div>
-                    <div className="text-sm text-purple-700">Reprodução natural com todas as sétimas</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
-  // ✅ TELA DE EXERCÍCIO ATIVO COM FEEDBACK
-  return (
-    <div className="relative min-h-screen bg-gray-50">
-      <div className="absolute top-4 left-4 z-20">
-        <button
-          onClick={handleBackToSelection}
-          className="bg-white shadow-lg rounded-lg px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 border border-gray-200"
-        >
-          <span className="text-lg">←</span>
-          <span className="font-medium">Voltar</span>
-        </button>
-      </div>
-      <div className="absolute top-4 right-4 z-20">
-        <div className="bg-green-500 text-white px-3 py-1 rounded-full text-sm font-medium shadow-lg">
-          ✅ Sistema Corrigido
-        </div>
-      </div>
-      
-      {/* EXIBE O EXERCÍCIO OU O FEEDBACK */}
-      {!gamificationFeedback ? (
+        {/* Session Progress */}
+        {exerciseCount > 0 && (
+          <div className="bg-white border-b">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+              <div className="text-center text-sm text-gray-600">
+                <strong>Sessão atual:</strong> {correctCount}/{exerciseCount} corretos 
+                ({exerciseCount > 0 ? Math.round((correctCount / exerciseCount) * 100) : 0}% de acerto)
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Componente do Exercício */}
         <ChordProgressionExercise
-          key={`${selectedDifficulty}-corrected`}
           difficulty={selectedDifficulty}
           onComplete={handleExerciseComplete}
         />
-      ) : (
-        // ✅ TELA DE FEEDBACK APÓS O EXERCÍCIO
-        <div className="min-h-screen flex items-center justify-center p-4">
-          <div className="max-w-2xl w-full bg-white rounded-2xl shadow-2xl p-8 space-y-6 animate-fade-in">
-            {/* Header do Resultado */}
-            <div className={`text-center p-4 rounded-xl border-2 ${lastResult?.correct ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-              <div className="text-5xl mb-2">{lastResult?.correct ? '✅' : '🎯'}</div>
-              <h2 className={`text-3xl font-bold ${lastResult?.correct ? 'text-green-700' : 'text-red-700'}`}>
-                {lastResult?.correct ? 'Correto!' : 'Quase lá!'}
-              </h2>
-              <p className="text-gray-600 mt-2">
-                A resposta era: <strong>{lastResult?.expected}</strong>
-              </p>
-            </div>
+      </div>
+    );
+  }
 
-            {/* Detalhes da Gamificação */}
-            {gamificationFeedback?.sessionResults && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="bg-blue-50 p-4 rounded-lg text-center border border-blue-200">
-                    <div className="text-blue-600 text-2xl">⚡</div>
-                    <div className="text-xs text-blue-600 font-semibold">XP GANHO</div>
-                    <div className="font-bold text-blue-800 text-2xl">+{gamificationFeedback.sessionResults.xpEarned}</div>
-                  </div>
-                  <div className="bg-purple-50 p-4 rounded-lg text-center border border-purple-200">
-                    <div className="text-purple-600 text-2xl">💎</div>
-                    <div className="text-xs text-purple-600 font-semibold">PONTOS</div>
-                    <div className="font-bold text-purple-800 text-2xl">+{gamificationFeedback.sessionResults.pointsEarned}</div>
+  // Seleção de dificuldade
+  return (
+    <div className="container mx-auto py-4 sm:py-6 px-3 sm:px-4">
+      {/* Breadcrumb */}
+      <div className="mb-3 sm:mb-4 flex items-center gap-2 text-sm">
+        <Link href="/dashboard" className="text-indigo-600 hover:text-indigo-800">
+          Dashboard
+        </Link>
+        <span className="text-gray-400">›</span>
+        <span className="text-gray-600">Progressões de Acordes</span>
+      </div>
+
+      {/* Header */}
+      <div className="mb-4 sm:mb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="bg-purple-100 p-2 rounded-lg">
+            <span className="text-xl sm:text-2xl">🎼</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
+            Progressões de Acordes
+          </h1>
+        </div>
+        <p className="text-gray-600 text-sm sm:text-base">
+          Olá, {user?.name}! Desenvolva seu ouvido harmônico identificando progressões
+          de acordes - sequências de acordes que criam a harmonia de uma música.
+        </p>
+      </div>
+
+      {/* Seleção de Dificuldade */}
+      <div className="mb-4 sm:mb-6">
+        <h3 className="text-base sm:text-lg font-semibold mb-3">Escolha a dificuldade:</h3>
+        
+        {/* Grid responsivo para os cartões */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+          {DIFFICULTY_OPTIONS.map((option) => (
+            <div
+              key={option.value}
+              className={`${option.bgColor} ${option.borderColor} border-2 rounded-xl p-4 sm:p-6 cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
+                (option.value === 'intermediate' || option.value === 'advanced') && user?.subscription !== 'premium'
+                  ? 'opacity-60 cursor-not-allowed'
+                  : ''
+              }`}
+              onClick={() => handleStartExercise(option.value)}
+            >
+              <div className="text-center">
+                <div className="text-3xl sm:text-4xl mb-3">{option.icon}</div>
+                <h3 className={`text-lg sm:text-xl font-bold mb-2 ${option.color} flex items-center justify-center gap-2`}>
+                  <span>{option.label}</span>
+                  {(option.value === 'intermediate' || option.value === 'advanced') && user?.subscription !== 'premium' && (
+                    <span className="text-sm">🔒</span>
+                  )}
+                </h3>
+                <p className="text-gray-600 text-xs sm:text-sm mb-4">
+                  {option.description}
+                </p>
+                
+                {/* Exemplos */}
+                <div className="mb-4">
+                  <div className="text-xs font-medium text-gray-500 mb-2">Exemplos:</div>
+                  <div className="space-y-1">
+                    {option.examples.map((example, index) => (
+                      <div
+                        key={index}
+                        className="bg-white bg-opacity-60 px-2 py-1 rounded text-xs font-mono"
+                      >
+                        {example}
+                      </div>
+                    ))}
                   </div>
                 </div>
-
-                {gamificationFeedback.sessionResults.levelUp && (
-                  <div className="p-4 bg-yellow-100 border border-yellow-300 rounded-lg text-center animate-pulse">
-                    <div className="text-2xl mb-1">🎉</div>
-                    <div className="text-yellow-800 font-bold text-lg">
-                      Level Up! Você alcançou o Nível {gamificationFeedback.sessionResults.newLevel}!
-                    </div>
-                  </div>
-                )}
                 
-                {gamificationFeedback.sessionResults.newBadges.length > 0 && (
-                  <div className="p-4 bg-indigo-100 border border-indigo-300 rounded-lg text-center">
-                    <div className="text-2xl mb-1">🏆</div>
-                    <div className="text-indigo-800 font-bold text-lg">
-                      Nova Conquista: {gamificationFeedback.sessionResults.newBadges[0].name}!
-                    </div>
-                  </div>
-                )}
+                <button 
+                  className={`w-full py-2 px-4 rounded-lg font-medium transition-colors text-sm sm:text-base ${
+                    (option.value === 'intermediate' || option.value === 'advanced') && user?.subscription !== 'premium'
+                      ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                      : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  }`}
+                  disabled={(option.value === 'intermediate' || option.value === 'advanced') && user?.subscription !== 'premium'}
+                >
+                  {(option.value === 'intermediate' || option.value === 'advanced') && user?.subscription !== 'premium'
+                    ? 'Premium Necessário'
+                    : 'Começar'
+                  }
+                </button>
               </div>
-            )}
+            </div>
+          ))}
+        </div>
 
-            {/* Botão para continuar */}
-            <button
-              onClick={() => {
-                setGamificationFeedback(null);
-                setLastResult(null);
-              }}
-              className="w-full bg-indigo-600 text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-indigo-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
-            >
-              Próximo Exercício ➡️
-            </button>
+        {/* Premium Notice */}
+        {user?.subscription !== 'premium' && (
+          <div className="mt-4 p-3 sm:p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-start gap-2">
+              <span className="text-amber-600 text-base sm:text-lg mt-0.5">✨</span>
+              <div className="text-amber-800 text-xs sm:text-sm">
+                <strong>Upgrade para Premium:</strong> Desbloqueie os níveis intermediário e avançado para treinar progressões mais complexas!
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Instruções */}
+      <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 mb-6">
+        <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-4 text-center">
+          Como funciona?
+        </h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          <div className="text-center">
+            <div className="bg-blue-100 w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+              <span className="text-lg sm:text-xl">🎵</span>
+            </div>
+            <h4 className="font-semibold text-gray-800 mb-2 text-sm sm:text-base">1. Ouça</h4>
+            <p className="text-xs sm:text-sm text-gray-600">
+              Clique em Tocar Progressão para ouvir a sequência de acordes
+            </p>
+          </div>
+          
+          <div className="text-center">
+            <div className="bg-green-100 w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+              <span className="text-lg sm:text-xl">🎯</span>
+            </div>
+            <h4 className="font-semibold text-gray-800 mb-2 text-sm sm:text-base">2. Identifique</h4>
+            <p className="text-xs sm:text-sm text-gray-600">
+              Escolha qual progressão harmônica você ouviu entre as opções
+            </p>
+          </div>
+          
+          <div className="text-center">
+            <div className="bg-purple-100 w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+              <span className="text-lg sm:text-xl">✅</span>
+            </div>
+            <h4 className="font-semibold text-gray-800 mb-2 text-sm sm:text-base">3. Confirme</h4>
+            <p className="text-xs sm:text-sm text-gray-600">
+              Confirme sua resposta e receba feedback imediato
+            </p>
+          </div>
+          
+          <div className="text-center">
+            <div className="bg-yellow-100 w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+              <span className="text-lg sm:text-xl">📈</span>
+            </div>
+            <h4 className="font-semibold text-gray-800 mb-2 text-sm sm:text-base">4. Evolua</h4>
+            <p className="text-xs sm:text-sm text-gray-600">
+              Ganhe pontos e XP, e acompanhe seu progresso
+            </p>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* Dicas */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 sm:p-6">
+        <h3 className="text-base sm:text-lg font-bold text-blue-900 mb-3 sm:mb-4 flex items-center gap-2">
+          <span className="text-lg sm:text-xl">💡</span>
+          Dicas para progressões de acordes
+        </h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm text-blue-800">
+          <div className="flex items-start gap-2">
+            <span className="text-blue-600 mt-0.5">•</span>
+            <span>Foque na função harmônica de cada acorde na tonalidade</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="text-blue-600 mt-0.5">•</span>
+            <span>Pratique identificar as cadências mais comuns primeiro</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="text-blue-600 mt-0.5">•</span>
+            <span>Use o piano virtual para tocar e comparar progressões</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="text-blue-600 mt-0.5">•</span>
+            <span>Ouça múltiplas vezes antes de escolher sua resposta</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
-};
-
-export default ChordProgressionsPage;
+}

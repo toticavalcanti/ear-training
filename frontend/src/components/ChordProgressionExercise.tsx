@@ -1,4 +1,4 @@
-// src/components/ChordProgressionExercise.tsx - VERSÃO CORRIGIDA SEM SPOILERS + GAMIFICAÇÃO
+// src/components/ChordProgressionExercise.tsx - VERSÃO COMPLETA CORRIGIDA
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -326,7 +326,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     return `${note}${octave}`;
   }, []);
 
-  // 🎹 FUNÇÃO DE REPRODUÇÃO (mantida igual)
+  // 🎹 FUNÇÃO DE REPRODUÇÃO CORRIGIDA - ELIMINA INCONSISTÊNCIA ÁUDIO-VISUAL
   const playProgression = useCallback(async () => {
     if (!currentProgression || !isPianoReady) {
       console.log('🎹 Piano ainda não está pronto ou progressão não definida');
@@ -337,7 +337,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     resetVoiceLeading();
 
     try {
-      console.log(`🎼 === REPRODUÇÃO INICIADA ===`);
+      console.log(`🎼 === REPRODUÇÃO CORRIGIDA INICIADA ===`);
       console.log(`🎯 Progressão: ${currentProgression.name}`);
       console.log(`🔑 Tonalidade: ${currentKey}`);
 
@@ -354,28 +354,131 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
       const pauseBetweenChords = Math.max(50, chordDuration * 0.05);
       const noteOverlap = chordDuration * 0.92;
       
-      // 🎼 ANÁLISE HARMÔNICA PARA REPRODUÇÃO
+      // 🎼 ANÁLISE HARMÔNICA CORRIGIDA - USA ACORDES TRANSPOSTOS
       let analysis: HarmonicAnalysis[] = [];
       try {
-        const originalAnalysis = analyzeProgression(currentProgression.degrees);
+        // ✅ CORREÇÃO CRÍTICA: Usar os acordes já transpostos em vez dos graus originais
+        console.log(`🎯 Usando acordes transpostos: ${transposedChords.join(' - ')}`);
         
-        analysis = originalAnalysis.map(chord => ({
-          ...chord,
-          voicing: chord.voicing.map(note => note + semitoneOffset)
-        }));
+        // Converter acordes transpostos para análise harmônica
+        analysis = transposedChords.map((chord, index) => {
+          // Extrair nota fundamental do acorde (exemplo: "Gb7" -> "Gb")
+          const root = chord.match(/^[A-G][b#]?/)?.[0] || 'C';
+          
+          // Converter para MIDI (C4 = 60)
+          const noteToMidi: Record<string, number> = {
+            'C': 60, 'C#': 61, 'Db': 61,
+            'D': 62, 'D#': 63, 'Eb': 63,
+            'E': 64,
+            'F': 65, 'F#': 66, 'Gb': 66,
+            'G': 67, 'G#': 68, 'Ab': 68,
+            'A': 69, 'A#': 70, 'Bb': 70,
+            'B': 71
+          };
+          
+          const rootMidi = noteToMidi[root] || 60;
+          
+          // Gerar voicing básico baseado no tipo de acorde
+          let voicing: number[] = [];
+          
+          if (chord.includes('m7♭5') || chord.includes('m7b5')) {
+            // Meio-diminuto: 1 b3 b5 b7
+            voicing = [rootMidi, rootMidi + 3, rootMidi + 6, rootMidi + 10];
+          } else if (chord.includes('dim7')) {
+            // Diminuto: 1 b3 b5 bb7
+            voicing = [rootMidi, rootMidi + 3, rootMidi + 6, rootMidi + 9];
+          } else if (chord.includes('maj7')) {
+            // Acorde maior com sétima maior: 1 3 5 7
+            voicing = [rootMidi, rootMidi + 4, rootMidi + 7, rootMidi + 11];
+          } else if (chord.includes('m7')) {
+            // Acorde menor com sétima: 1 b3 5 b7
+            voicing = [rootMidi, rootMidi + 3, rootMidi + 7, rootMidi + 10];
+          } else if (chord.includes('7alt')) {
+            // Acorde alterado: 1 3 b7 b13
+            voicing = [rootMidi, rootMidi + 4, rootMidi + 10, rootMidi + 20];
+          } else if (chord.includes('sus4')) {
+            // Acorde suspenso: 1 4 5
+            voicing = [rootMidi, rootMidi + 5, rootMidi + 7];
+          } else if (chord.includes('sus2')) {
+            // Acorde suspenso: 1 2 5
+            voicing = [rootMidi, rootMidi + 2, rootMidi + 7];
+          } else if (chord.includes('add9')) {
+            // Acorde com nona: 1 3 5 9
+            voicing = [rootMidi, rootMidi + 4, rootMidi + 7, rootMidi + 14];
+          } else if (chord.includes('13')) {
+            // Acorde de décima terceira: 1 3 7 9 13
+            voicing = [rootMidi, rootMidi + 4, rootMidi + 11, rootMidi + 14, rootMidi + 21];
+          } else if (chord.includes('11')) {
+            // Acorde de décima primeira: 1 3 7 11
+            voicing = [rootMidi, rootMidi + 4, rootMidi + 10, rootMidi + 17];
+          } else if (chord.includes('9')) {
+            // Acorde de nona: 1 3 7 9
+            voicing = [rootMidi, rootMidi + 4, rootMidi + 10, rootMidi + 14];
+          } else if (chord.includes('7')) {
+            // Acorde dominante: 1 3 5 b7
+            voicing = [rootMidi, rootMidi + 4, rootMidi + 7, rootMidi + 10];
+          } else if (chord.includes('6')) {
+            // Acorde com sexta: 1 3 5 6
+            voicing = [rootMidi, rootMidi + 4, rootMidi + 7, rootMidi + 9];
+          } else if (chord.includes('m')) {
+            // Acorde menor: 1 b3 5
+            voicing = [rootMidi, rootMidi + 3, rootMidi + 7];
+          } else if (chord.includes('+')) {
+            // Acorde aumentado: 1 3 #5
+            voicing = [rootMidi, rootMidi + 4, rootMidi + 8];
+          } else {
+            // Acorde maior: 1 3 5
+            voicing = [rootMidi, rootMidi + 4, rootMidi + 7];
+          }
+          
+          // Garantir que as notas estejam em uma oitava razoável (C3-C6)
+          voicing = voicing.map(note => {
+            while (note < 48) note += 12; // Não muito grave
+            while (note > 84) note -= 12; // Não muito agudo
+            return note;
+          });
+          
+          return {
+            symbol: chord,
+            degree: currentProgression.degrees[index] || 'I',
+            analysis: `Acorde ${index + 1}`,
+            voicing: voicing
+          };
+        });
+        
+        console.log(`✅ Análise harmônica corrigida gerada para ${analysis.length} acordes`);
         
       } catch (analysisError) {
-        console.warn('⚠️ Erro na análise harmônica:', analysisError);
+        console.warn('⚠️ Erro na análise harmônica corrigida, usando fallback:', analysisError);
         
-        const simpleFallback = currentProgression.degrees.map((degree, index) => ({
-          symbol: degree,
-          degree: degree,
-          analysis: 'Reprodução simples',
-          voicing: [60 + (index * 4) + semitoneOffset, 64 + (index * 4) + semitoneOffset, 67 + (index * 4) + semitoneOffset]
-        }));
-        
-        analysis = simpleFallback;
+        // Fallback usando o sistema original caso dê erro
+        try {
+          const originalAnalysis = analyzeProgression(currentProgression.degrees);
+          analysis = originalAnalysis.map(chord => ({
+            ...chord,
+            voicing: chord.voicing.map(note => note + semitoneOffset)
+          }));
+        } catch (fallbackError) {
+          console.warn('⚠️ Erro no fallback, usando voicings simples:', fallbackError);
+          
+          const simpleFallback = currentProgression.degrees.map((degree, index) => ({
+            symbol: degree,
+            degree: degree,
+            analysis: 'Reprodução simples',
+            voicing: [60 + (index * 4) + semitoneOffset, 64 + (index * 4) + semitoneOffset, 67 + (index * 4) + semitoneOffset]
+          }));
+          
+          analysis = simpleFallback;
+        }
       }
+
+      // ✅ LOGS DE DEBUG PARA VERIFICAR CONSISTÊNCIA
+      console.log(`🔍 === VERIFICAÇÃO DE CONSISTÊNCIA CORRIGIDA ===`);
+      console.log(`🎵 Visual (transposedChords): ${transposedChords.join(' - ')}`);
+      console.log(`🎹 Áudio (analysis): ${analysis.map(a => a.symbol).join(' - ')}`);
+      console.log(`🎯 Progressão original: ${currentProgression.degrees.join(' - ')}`);
+      console.log(`🔑 Tonalidade: ${currentKey}`);
+      console.log(`📊 Offset MIDI: +${semitoneOffset}`);
 
       if (analysis.length === 0) {
         console.error('❌ Não foi possível gerar análise harmônica');
@@ -450,13 +553,13 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
       globalActiveNotes.clear();
 
       setIsPlaying(false);
-      console.log(`✅ Progressão concluída em ${currentKey}`);
+      console.log(`✅ Progressão corrigida concluída em ${currentKey}`);
 
     } catch (err: unknown) {
       console.error('❌ Erro ao tocar progressão:', err);
       setIsPlaying(false);
     }
-  }, [currentProgression, getNoteNameFromMidi, midiToFrequency, isPianoReady, playbackTempo, currentKey, semitoneOffset]);
+  }, [currentProgression, getNoteNameFromMidi, midiToFrequency, isPianoReady, playbackTempo, currentKey, semitoneOffset, transposedChords]);
 
   // ✅ VERIFICAR RESPOSTA COM GAMIFICAÇÃO
   const checkAnswer = useCallback(async () => {
@@ -709,7 +812,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
             {difficulty === 'beginner' ? 'Iniciante' : difficulty === 'intermediate' ? 'Intermediário' : 'Avançado'}
           </div>
           <div className="text-xs text-green-600 bg-green-50 rounded-lg p-3">
-            ✅ Sistema corrigido • Graus harmônicos puros
+            ✅ Sistema corrigido • Áudio-visual sincronizado
           </div>
         </div>
       </div>
@@ -760,7 +863,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                 Ouça progressões harmônicas e identifique pelo nome
                 <br />
                 <span className="text-purple-600 font-medium">
-                  🎹 Tocando em {currentKey} • Sistema gamificado ativo
+                  🎹 Tocando em {currentKey} • Áudio-visual sincronizado
                 </span>
               </div>
             </div>
@@ -818,7 +921,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                 <div className="text-center">
                   <div className="text-xs text-gray-600">Reflexiva</div>
                   <div className="font-bold text-gray-800">
-                    {sessionHistory.filter(h => h.timeSpent >= 3 && h.timeSpent <= 15).length}/{sessionHistory.length}
+                    {sessionHistory.filter(h => h.timeSpent >= 5 && h.timeSpent <= 20).length}/{sessionHistory.length}
                   </div>
                 </div>
               </div>
@@ -912,7 +1015,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
 
                 {sessionHistory.length >= 2 && (
                   <div className="mt-2 text-xs text-purple-600">
-                    💡 Dica: Tempo ideal entre 3-15 segundos para máximo bonus de reflexão
+                    💡 Dica: Tempo ideal entre 5-20 segundos para máximo bonus de reflexão
                   </div>
                 )}
               </div>
@@ -1042,14 +1145,14 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                           {transposedChords.join(' - ')}
                         </div>
                         <div className="text-xs text-green-600 mt-1">
-                          (Transposição para reprodução)
+                          (Áudio sincronizado ✅)
                         </div>
                       </div>
                     </div>
                   </div>
 
                   <div className="text-xs text-gray-500 text-center p-2 bg-gray-50 rounded">
-                    ✅ Informações reveladas após responder para não spoilar o exercício
+                    ✅ Informações reveladas após responder • Áudio-visual 100% sincronizado
                   </div>
                 </div>
 
