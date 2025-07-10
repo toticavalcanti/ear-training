@@ -1,4 +1,4 @@
-// src/components/ChordProgressionExercise.tsx - VERSÃO CORRIGIDA E OTIMIZADA
+// src/components/ChordProgressionExercise.tsx - VERSÃO CORRIGIDA E OTIMIZADA COM LARGURA TOTAL
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -1210,19 +1210,6 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
                   </div>
                 )}
 
-                {/* ✅ PAUTA MUSICAL COM VEXFLOW */}
-                {showHarmonicAnalysis && harmonicAnalysis.length > 0 && (
-                  <VexFlowMusicalStaff
-                    progression={harmonicAnalysis}
-                    title={`${currentProgression.name} - ${currentKey}`}
-                    timeSignature={currentProgression.timeSignature}
-                    showChordSymbols={true}
-                    showRomanNumerals={true}
-                    width={700}
-                    height={250}
-                  />
-                )}
-
                 {/* Feedback do Backend */}
                 {backendResult && (
                   <div className="bg-white rounded-xl shadow-sm p-6">
@@ -1281,6 +1268,21 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
             )}
           </div>
         </div>
+
+        {/* ✅ PAUTA MUSICAL - LARGURA TOTAL (FORA DO GRID) */}
+        {showResult && showHarmonicAnalysis && harmonicAnalysis.length > 0 && (
+          <div className="mt-8 -mx-4 px-4">
+            <VexFlowMusicalStaff
+              progression={harmonicAnalysis}
+              title={`${currentProgression.name} - ${currentKey}`}
+              timeSignature={currentProgression.timeSignature}
+              showChordSymbols={true}
+              showRomanNumerals={false}
+              height={300}
+              chordSymbols={transposedChords} // ✅ PASSAR CIFRAS CORRETAS
+            />
+          </div>
+        )}
 
         {/* PIANO */}
         <div className="mt-8 bg-white rounded-lg shadow-sm p-6">

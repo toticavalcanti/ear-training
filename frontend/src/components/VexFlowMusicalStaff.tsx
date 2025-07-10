@@ -1,86 +1,13 @@
-// src/components/VexFlowMusicalStaff.tsx - VERSÃO CORRIGIDA
+// src/components/VexFlowMusicalStaff.tsx - VERSÃO REAL E RESPONSIVA
 'use client';
 
-import React, { useEffect, useRef, useCallback } from 'react';
-
-// Tipos específicos para VexFlow
-interface VexFlowLib {
-  Renderer: {
-    new (element: HTMLElement, backend: number): VexFlowRenderer;
-    Backends: {
-      SVG: number;
-    };
-  };
-  Stave: {
-    new (x: number, y: number, width: number): VexFlowStave;
-  };
-  Voice: {
-    new (options: { num_beats: number; beat_value: number }): VexFlowVoice;
-  };
-  StaveNote: {
-    new (options: { clef: string; keys: string[]; duration: string }): VexFlowStaveNote;
-  };
-  Formatter: {
-    new (): VexFlowFormatter;
-  };
-  Accidental: {
-    new (type: string): unknown;
-  };
-}
-
-interface VexFlowRenderer {
-  resize(width: number, height: number): void;
-  getContext(): VexFlowContext;
-}
-
-interface VexFlowContext {
-  setFillStyle(color: string): void;
-  setStrokeStyle(color: string): void;
-  setFont(family: string, size: number, weight: string): void;
-  fillText(text: string, x: number, y: number): void;
-  measureText(text: string): { width: number };
-  save(): void;
-  restore(): void;
-}
-
-interface VexFlowStave {
-  addClef(clef: string): VexFlowStave;
-  addTimeSignature(timeSignature: string): VexFlowStave;
-  setContext(context: VexFlowContext): VexFlowStave;
-  draw(): void;
-}
-
-interface VexFlowVoice {
-  addTickables(notes: VexFlowStaveNote[]): void;
-  draw(context: VexFlowContext, stave: VexFlowStave): void;
-}
-
-interface VexFlowStaveNote {
-  addAccidental?(index: number, accidental: unknown): void;
-  addModifier?(modifier: unknown, index?: number): void;
-  getDuration(): string;
-}
-
-interface VexFlowFormatter {
-  joinVoices(voices: VexFlowVoice[]): VexFlowFormatter;
-  format(voices: VexFlowVoice[], width: number): void;
-}
-
-// Interface removida - VexFlowAccidental não precisa de tipagem específica
-// O VexFlow usa internamente, mas não precisamos definir suas propriedades
-
-// Declarações de tipos para VexFlow
-declare global {
-  interface Window {
-    VexFlow: VexFlowLib;
-  }
-}
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 
 interface HarmonicAnalysis {
-  degree: string;
   symbol: string;
-  voicing: number[];
+  degree: string;
   analysis: string;
+  voicing: number[];
 }
 
 interface VexFlowMusicalStaffProps {
@@ -89,393 +16,351 @@ interface VexFlowMusicalStaffProps {
   timeSignature?: string;
   showChordSymbols?: boolean;
   showRomanNumerals?: boolean;
-  backgroundColor?: string;
-  foregroundColor?: string;
   width?: number;
   height?: number;
+  chordSymbols?: string[];
 }
 
 const VexFlowMusicalStaff: React.FC<VexFlowMusicalStaffProps> = ({
   progression,
-  title,
+  title = "Progressão Harmônica",
   timeSignature = "4/4",
-  showChordSymbols = true,
-  showRomanNumerals = true,
-  backgroundColor = "#ffffff",
-  foregroundColor = "#000000",
-  width = 800,
-  height = 300
+
+  showRomanNumerals = false,
+
+  height = 400,
+  chordSymbols
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const renderedRef = useRef<boolean>(false);
+  const svgRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(800);
+  const [isLoaded, setIsLoaded] = useState<boolean>(false);
 
-  // Converter MIDI para notação VexFlow
-  const midiToVexFlowNote = (midiNote: number): string => {
-    const noteNames = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b'];
-    const octave = Math.floor(midiNote / 12) - 1;
-    const noteName = noteNames[midiNote % 12];
-    return `${noteName}/${octave}`;
-  };
+  // Props estáveis
+  const stableTitle = useMemo(() => title || "Progressão Harmônica", [title]);
+  const stableTimeSignature = useMemo(() => timeSignature || "4/4", [timeSignature]);
+  const stableHeight = useMemo(() => height || 400, [height]);
+  const stableChordSymbols = useMemo(() => chordSymbols || progression.map(p => p.symbol), [chordSymbols, progression]);
+  const stableProgression = useMemo(() => progression || [], [progression]);
 
-  // Renderizar fallback quando VexFlow não está disponível
-  const renderFallback = useCallback(() => {
-    if (!containerRef.current) return;
-
-    containerRef.current.innerHTML = `
-      <div style="
-        width: ${width}px; 
-        height: ${height}px; 
-        display: flex; 
-        align-items: center; 
-        justify-content: center; 
-        background: ${backgroundColor}; 
-        border: 1px solid #ccc; 
-        border-radius: 8px;
-      ">
-        <div style="text-align: center; color: ${foregroundColor};">
-          <div style="font-size: 24px; margin-bottom: 8px;">🎼</div>
-          <div style="font-size: 14px;">Carregando pauta musical...</div>
-          <div style="font-size: 12px; color: #666; margin-top: 4px;">
-            VexFlow será carregado em breve
-          </div>
-        </div>
-      </div>
-    `;
-  }, [width, height, backgroundColor, foregroundColor]);
-
-  // Renderizar a pauta com VexFlow
-  const renderStaff = useCallback(() => {
-    if (!containerRef.current || renderedRef.current) {
-      return;
-    }
-
-    // Verificar se VexFlow está disponível (suporte para v4 e v5)
-    const VF = window.VexFlow || window.Vex?.Flow;
-    if (!VF) {
-      console.log('🎼 VexFlow ainda não carregado, aguardando...');
-      return;
-    }
-
-    try {
-      console.log('🎼 Iniciando renderização da pauta com VexFlow');
-      
-      // Limpar container
-      containerRef.current.innerHTML = '';
-      
-      // Criar renderer SVG
-      const renderer = new VF.Renderer(containerRef.current, VF.Renderer.Backends.SVG);
-      renderer.resize(width, height);
-      
-      const context = renderer.getContext();
-      context.setFillStyle(foregroundColor);
-      context.setStrokeStyle(foregroundColor);
-
-      // Calcular largura por acorde
-      const chordsPerStave = Math.min(4, progression.length);
-      const staveWidth = Math.floor((width - 100) / Math.ceil(progression.length / chordsPerStave));
-      const staveHeight = 100;
-      const currentX = 50;
-      let currentY = 60;
-
-      // Dividir progressão em compassos
-      const measures = [];
-      for (let i = 0; i < progression.length; i += chordsPerStave) {
-        measures.push(progression.slice(i, i + chordsPerStave));
-      }
-
-      measures.forEach((measure, measureIndex) => {
-        // Criar pauta
-        const stave = new VF.Stave(currentX, currentY, staveWidth);
-        
-        if (measureIndex === 0) {
-          stave.addClef('treble');
-          stave.addTimeSignature(timeSignature);
-        }
-        
-        stave.setContext(context).draw();
-
-        // Criar notas para este compasso
-        const notes: VexFlowStaveNote[] = [];
-        const chordSymbols: string[] = [];
-        const romanNumerals: string[] = [];
-
-        measure.forEach((chord) => {
-          // Converter voicing MIDI para notação VexFlow
-          const sortedVoicing = [...chord.voicing]
-            .filter(midi => midi >= 48 && midi <= 84) // Filtrar range do piano
-            .sort((a, b) => a - b); // Ordenar do grave para agudo
-          
-          const keys = sortedVoicing
-            .map(midi => midiToVexFlowNote(midi))
-            .slice(0, 4); // Máximo 4 notas por acorde
-
-          if (keys.length > 0) {
-            // Usar duração baseada no número de acordes no compasso
-            const duration = measure.length === 1 ? 'w' : measure.length === 2 ? 'h' : 'q';
-            
-            const note = new VF.StaveNote({
-              clef: 'treble',
-              keys: keys,
-              duration: duration
-            });
-
-            // Adicionar acidentes se necessário (com verificação de API)
-            keys.forEach((key, index) => {
-              try {
-                if (key.includes('#')) {
-                  // Tentar diferentes APIs para acidentes
-                  if (typeof note.addAccidental === 'function') {
-                    note.addAccidental(index, new VF.Accidental('#'));
-                  } else if (typeof note.addModifier === 'function') {
-                    note.addModifier(new VF.Accidental('#'), index);
-                  }
-                } else if (key.includes('b')) {
-                  if (typeof note.addAccidental === 'function') {
-                    note.addAccidental(index, new VF.Accidental('b'));
-                  } else if (typeof note.addModifier === 'function') {
-                    note.addModifier(new VF.Accidental('b'), index);
-                  }
-                }
-              } catch (accidentalError) {
-                console.warn(`⚠️ Erro ao adicionar acidente em ${key}:`, accidentalError);
-              }
-            });
-
-            notes.push(note);
-            chordSymbols.push(chord.symbol);
-            romanNumerals.push(chord.degree);
-          }
-        });
-
-        if (notes.length > 0) {
-          // Criar voice com beats baseados na duração das notas
-          const totalBeats = notes.reduce((sum, note) => {
-            const duration = note.getDuration();
-            switch(duration) {
-              case 'w': return sum + 4;
-              case 'h': return sum + 2;
-              case 'q': return sum + 1;
-              default: return sum + 1;
-            }
-          }, 0);
-
-          const voice = new VF.Voice({
-            num_beats: Math.max(4, totalBeats),
-            beat_value: 4
-          });
-          voice.addTickables(notes);
-
-          // Formatar e desenhar
-          new VF.Formatter().joinVoices([voice]).format([voice], staveWidth - 50);
-          voice.draw(context, stave);
-
-          // Adicionar cifras acima da pauta
-          if (showChordSymbols) {
-            chordSymbols.forEach((symbol, index) => {
-              context.save();
-              context.setFont('Arial', 14, 'bold');
-              context.setFillStyle(foregroundColor);
-              
-              // Calcular posição X baseada na posição da nota
-              const noteX = currentX + 70 + (index * (staveWidth - 120) / Math.max(1, notes.length - 1));
-              const y = currentY - 25;
-              
-              // Centralizar texto
-              const textWidth = context.measureText(symbol).width;
-              context.fillText(symbol, noteX - textWidth / 2, y);
-              context.restore();
-            });
-          }
-
-          // Adicionar numerais romanos abaixo da pauta
-          if (showRomanNumerals) {
-            romanNumerals.forEach((numeral, index) => {
-              context.save();
-              context.setFont('Arial', 11, 'normal');
-              context.setFillStyle('#666666');
-              
-              // Calcular posição X baseada na posição da nota
-              const noteX = currentX + 70 + (index * (staveWidth - 120) / Math.max(1, notes.length - 1));
-              const y = currentY + staveHeight + 30;
-              
-              // Centralizar texto
-              const textWidth = context.measureText(numeral).width;
-              context.fillText(numeral, noteX - textWidth / 2, y);
-              context.restore();
-            });
-          }
-        }
-
-        // Próxima linha se necessário
-        currentY += staveHeight + 60;
-      });
-
-      // Adicionar título se fornecido
-      if (title) {
-        context.save();
-        context.setFont('Arial', 18, 'bold');
-        context.setFillStyle(foregroundColor);
-        context.fillText(title, width / 2 - (title.length * 5), 30);
-        context.restore();
-      }
-
-      renderedRef.current = true;
-      console.log('✅ Pauta renderizada com sucesso!');
-
-    } catch (error) {
-      console.error('❌ Erro ao renderizar pauta com VexFlow:', error);
-      renderFallback();
-    }
-  }, [
-    progression,
-    title,
-    timeSignature,
-    showChordSymbols,
-    showRomanNumerals,
-    foregroundColor,
-    width,
-    height,
-    renderFallback
-  ]);
-
-  // Carregar VexFlow dinamicamente
+  // Detectar largura do container - RESPONSIVO
   useEffect(() => {
-    const loadVexFlow = async () => {
-      // Verificar se VexFlow já está disponível (v4 ou v5)
-      const VF = window.VexFlow || window.Vex?.Flow;
-      if (VF) {
-        console.log('✅ VexFlow já carregado, renderizando...');
-        renderStaff();
-        return;
-      }
-
-      // Mostrar fallback enquanto carrega
-      renderFallback();
-
-      try {
-        console.log('🔄 Carregando VexFlow via CDN...');
-        
-        // Carregar VexFlow via CDN (versão estável)
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/vexflow@4.2.2/build/cjs/vexflow.js';
-        script.async = true;
-        
-        script.onload = () => {
-          console.log('✅ VexFlow 4.2.2 carregado com sucesso');
-          
-          // Verificar se carregou corretamente
-          const loadedVF = window.VexFlow || window.Vex?.Flow;
-          if (loadedVF) {
-            console.log('🎼 VexFlow está disponível, iniciando renderização...');
-            renderedRef.current = false;
-            setTimeout(renderStaff, 100);
-          } else {
-            console.error('❌ VexFlow carregou mas não está acessível');
-            renderFallback();
-          }
-        };
-        
-        script.onerror = (error) => {
-          console.error('❌ Erro ao carregar VexFlow:', error);
-          
-          // Tentar versão alternativa
-          console.log('🔄 Tentando versão alternativa...');
-          const altScript = document.createElement('script');
-          altScript.src = 'https://unpkg.com/vexflow@4.2.2/build/cjs/vexflow.js';
-          altScript.async = true;
-          
-          altScript.onload = () => {
-            console.log('✅ VexFlow alternativo carregado');
-            renderedRef.current = false;
-            setTimeout(renderStaff, 100);
-          };
-          
-          altScript.onerror = () => {
-            console.error('❌ Falha total ao carregar VexFlow');
-            renderFallback();
-          };
-          
-          document.head.appendChild(altScript);
-        };
-        
-        document.head.appendChild(script);
-
-        // Cleanup
-        return () => {
-          if (document.head.contains(script)) {
-            document.head.removeChild(script);
-          }
-        };
-      } catch (error) {
-        console.error('❌ Erro ao configurar VexFlow:', error);
-        renderFallback();
+    const updateWidth = () => {
+      if (svgRef.current) {
+        const rect = svgRef.current.getBoundingClientRect();
+        const parentWidth = rect.width || svgRef.current.offsetWidth;
+        const minWidth = Math.max(600, parentWidth - 20); // Mínimo 600px
+        const maxWidth = Math.min(1200, parentWidth); // Máximo 1200px
+        setContainerWidth(maxWidth || minWidth);
       }
     };
 
-    loadVexFlow();
-  }, [renderStaff, renderFallback]);
+    // Delay para garantir que o elemento existe
+    setTimeout(updateWidth, 100);
+    setIsLoaded(true);
+    
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
 
-  // Re-renderizar quando progression mudar
+  // Converter MIDI para nome de nota
+  const midiToNoteName = useCallback((midiNote: number): string => {
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const octave = Math.floor(midiNote / 12) - 1;
+    const noteName = noteNames[midiNote % 12];
+    return `${noteName}${octave}`;
+  }, []);
+
+  // Calcular posição Y correta baseada na nota MIDI real
+  const getCorrectStaffPosition = useCallback((midiNote: number, clef: 'treble' | 'bass', staffY: number): { y: number; ledgerLines: number[] } => {
+    const lineSpacing = 8;
+    let position: number;
+    const ledgerLines: number[] = [];
+    
+    if (clef === 'treble') {
+      // Clave de Sol: B4 (71) = linha superior, D5 (74) = acima da pauta
+      // Linha superior = staffY, linha inferior = staffY + 32
+      // Cada semitom = lineSpacing / 2 = 4px
+      const referenceMidi = 71; // B4 na linha superior
+      const referenceY = staffY;
+      position = referenceY + ((referenceMidi - midiNote) * 2); // 2px por semitom
+      
+    } else {
+      // Clave de Fá: D3 (50) = linha superior, F2 (41) = linha inferior  
+      const referenceMidi = 50; // D3 na linha superior
+      const referenceY = staffY;
+      position = referenceY + ((referenceMidi - midiNote) * 2); // 2px por semitom
+    }
+    
+    // Calcular linhas suplementares
+    const staffTop = staffY;
+    const staffBottom = staffY + 32;
+    
+    if (position < staffTop - 4) {
+      // Linhas acima da pauta
+      for (let y = staffTop - lineSpacing; y >= position - 4; y -= lineSpacing) {
+        ledgerLines.push(y);
+      }
+    } else if (position > staffBottom + 4) {
+      // Linhas abaixo da pauta
+      for (let y = staffBottom + lineSpacing; y <= position + 4; y += lineSpacing) {
+        ledgerLines.push(y);
+      }
+    }
+    
+    return { y: position, ledgerLines };
+  }, []);
+
+  // Usar voicing EXATO sem modificações
+  const prepareVoicing = useCallback((voicing: number[]) => {
+    if (!voicing || voicing.length === 0) {
+      // Fallback apenas se não houver voicing
+      return { trebleNotes: [], bassNotes: [], allNotes: [] };
+    }
+    
+    console.log('🎵 Voicing original recebido:', voicing.map(midiToNoteName));
+    
+    // Usar as notas EXATAS do voicing original
+    const allNotes = [...voicing].sort((a, b) => a - b);
+    
+    // Separar por clave de forma natural
+    const trebleNotes = allNotes.filter(note => note >= 60); // C4 e acima → clave de sol
+    const bassNotes = allNotes.filter(note => note < 60);    // Abaixo de C4 → clave de fá
+    
+    console.log('🎼 Clave Sol:', trebleNotes.map(midiToNoteName));
+    console.log('🎼 Clave Fá:', bassNotes.map(midiToNoteName));
+    
+    return { trebleNotes, bassNotes, allNotes };
+  }, [midiToNoteName]);
+
+  // Renderizar pauta
+  const renderStaff = useCallback(() => {
+    if (!svgRef.current || !stableProgression.length) return;
+
+    const actualWidth = containerWidth;
+    const staffLines = 5;
+    const lineSpacing = 8;
+    const trebleY = 50;
+    const bassY = 140;
+    const numChords = stableProgression.length;
+    
+    // Responsivo: ajustar com base na largura
+    const minMeasureWidth = actualWidth < 800 ? 80 : 100;
+    const staffWidth = Math.max(actualWidth - 200, numChords * minMeasureWidth);
+    const measureWidth = staffWidth / numChords;
+
+    svgRef.current.innerHTML = `
+      <svg width="${actualWidth}" height="${stableHeight}" style="background: white; font-family: Arial, sans-serif;">
+        <!-- Título -->
+        <text x="${actualWidth/2}" y="25" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">
+          ${stableTitle}
+        </text>
+
+        <!-- PAUTA SUPERIOR (Clave de Sol) -->
+        <text x="20" y="${trebleY + 25}" font-family="serif" font-size="32" fill="#000">𝄞</text>
+        
+        ${Array.from({length: staffLines}, (_, i) => {
+          const y = trebleY + (i * lineSpacing);
+          return `<line x1="60" y1="${y}" x2="${60 + staffWidth}" y2="${y}" stroke="#000" stroke-width="1"/>`;
+        }).join('')}
+
+        <!-- PAUTA INFERIOR (Clave de Fá) -->
+        <text x="20" y="${bassY + 25}" font-family="serif" font-size="32" fill="#000">𝄢</text>
+        
+        ${Array.from({length: staffLines}, (_, i) => {
+          const y = bassY + (i * lineSpacing);
+          return `<line x1="60" y1="${y}" x2="${60 + staffWidth}" y2="${y}" stroke="#000" stroke-width="1"/>`;
+        }).join('')}
+
+        <!-- Conectar pautas -->
+        <line x1="55" y1="${trebleY}" x2="55" y2="${bassY + 32}" stroke="#000" stroke-width="2"/>
+
+        <!-- Fórmula de compasso -->
+        <text x="70" y="${trebleY + 12}" font-size="12" font-weight="bold" fill="#000">${stableTimeSignature.split('/')[0]}</text>
+        <text x="70" y="${trebleY + 24}" font-size="12" font-weight="bold" fill="#000">${stableTimeSignature.split('/')[1]}</text>
+        <text x="70" y="${bassY + 12}" font-size="12" font-weight="bold" fill="#000">${stableTimeSignature.split('/')[0]}</text>
+        <text x="70" y="${bassY + 24}" font-size="12" font-weight="bold" fill="#000">${stableTimeSignature.split('/')[1]}</text>
+
+        <!-- Acordes com notas reais -->
+        ${stableProgression.map((chord, chordIndex) => {
+          const measureStart = 85 + (chordIndex * measureWidth);
+          const centerX = measureStart + (measureWidth / 2);
+          const voicing = prepareVoicing(chord.voicing);
+          
+          let svgContent = '';
+          
+          // Cifra do acorde
+          svgContent += `
+            <text x="${centerX}" y="${trebleY - 10}" text-anchor="middle" font-size="13" font-weight="bold" fill="#000">
+              ${stableChordSymbols[chordIndex] || chord.symbol}
+            </text>
+          `;
+          
+          // Notas da clave de sol (EXATAS do voicing)
+          voicing.trebleNotes.forEach((midiNote, noteIndex) => {
+            const noteX = centerX + (noteIndex - (voicing.trebleNotes.length - 1) / 2) * 14;
+            const position = getCorrectStaffPosition(midiNote, 'treble', trebleY);
+            
+            // Linhas suplementares se necessário
+            position.ledgerLines.forEach(ledgerY => {
+              svgContent += `<line x1="${noteX - 12}" y1="${ledgerY}" x2="${noteX + 12}" y2="${ledgerY}" stroke="#000" stroke-width="1"/>`;
+            });
+            
+            // Semibreve BONITA (formato oval correto)
+            svgContent += `
+              <ellipse cx="${noteX}" cy="${position.y}" rx="5" ry="3.5" 
+                       fill="none" stroke="#000" stroke-width="1.2" 
+                       transform="rotate(-15 ${noteX} ${position.y})"/>
+            `;
+          });
+          
+          // Notas da clave de fá (EXATAS do voicing)
+          voicing.bassNotes.forEach((midiNote, noteIndex) => {
+            const noteX = centerX + (noteIndex - (voicing.bassNotes.length - 1) / 2) * 14;
+            const position = getCorrectStaffPosition(midiNote, 'bass', bassY);
+            
+            // Linhas suplementares se necessário
+            position.ledgerLines.forEach(ledgerY => {
+              svgContent += `<line x1="${noteX - 12}" y1="${ledgerY}" x2="${noteX + 12}" y2="${ledgerY}" stroke="#000" stroke-width="1"/>`;
+            });
+            
+            // Semibreve BONITA (formato oval correto)
+            svgContent += `
+              <ellipse cx="${noteX}" cy="${position.y}" rx="5" ry="3.5" 
+                       fill="none" stroke="#000" stroke-width="1.2" 
+                       transform="rotate(-15 ${noteX} ${position.y})"/>
+            `;
+          });
+          
+          // Grau romano
+          if (showRomanNumerals) {
+            svgContent += `
+              <text x="${centerX}" y="${bassY + 55}" text-anchor="middle" font-size="11" fill="#666">
+                ${chord.degree || ''}
+              </text>
+            `;
+          }
+          
+          return svgContent;
+        }).join('')}
+
+        <!-- Barras de compasso -->
+        ${Array.from({length: numChords - 1}, (_, i) => {
+          const x = 85 + ((i + 1) * measureWidth);
+          return `
+            <line x1="${x}" y1="${trebleY}" x2="${x}" y2="${trebleY + 32}" stroke="#000" stroke-width="1"/>
+            <line x1="${x}" y1="${bassY}" x2="${x}" y2="${bassY + 32}" stroke="#000" stroke-width="1"/>
+          `;
+        }).join('')}
+
+        <!-- Barra final dupla -->
+        <line x1="${60 + staffWidth - 10}" y1="${trebleY}" x2="${60 + staffWidth - 10}" y2="${trebleY + 32}" stroke="#000" stroke-width="1"/>
+        <line x1="${60 + staffWidth}" y1="${trebleY}" x2="${60 + staffWidth}" y2="${trebleY + 32}" stroke="#000" stroke-width="3"/>
+        <line x1="${60 + staffWidth - 10}" y1="${bassY}" x2="${60 + staffWidth - 10}" y2="${bassY + 32}" stroke="#000" stroke-width="1"/>
+        <line x1="${60 + staffWidth}" y1="${bassY}" x2="${60 + staffWidth}" y2="${bassY + 32}" stroke="#000" stroke-width="3"/>
+      </svg>
+    `;
+  }, [stableProgression, stableChordSymbols, showRomanNumerals, stableTitle, stableTimeSignature, stableHeight, containerWidth, prepareVoicing, getCorrectStaffPosition]);
+
+  // Renderizar quando carregado
   useEffect(() => {
-    if (window.VexFlow && progression.length > 0) {
-      renderedRef.current = false;
+    if (isLoaded && stableProgression.length > 0) {
       renderStaff();
     }
-  }, [progression, renderStaff]);
+  }, [isLoaded, renderStaff, stableProgression]);
+
+  if (!isLoaded) {
+    return (
+      <div className="w-full bg-white rounded-xl shadow-sm p-6">
+        <div className="text-center">
+          <div className="animate-spin text-2xl mb-2">🎼</div>
+          <div className="text-gray-600 text-sm">Carregando pauta musical...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!stableProgression.length) {
+    return (
+      <div className="w-full bg-white rounded-xl shadow-sm p-6">
+        <div className="text-center text-gray-500">
+          <div className="text-2xl mb-2">🎵</div>
+          <div className="text-sm">Nenhuma progressão para exibir</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="vexflow-musical-staff bg-white rounded-lg border shadow-sm overflow-hidden">
-      {/* Header com controles */}
-      <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <div>
-            <h3 className="text-lg font-bold text-gray-900">
-              {title || 'Análise Harmônica'}
-            </h3>
-            <div className="text-sm text-gray-600">
-              VexFlow • {progression.length} acordes • {timeSignature}
+    <div className="w-full bg-white rounded-xl shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="px-4 sm:px-6 py-4 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-100 p-2 rounded-lg">
+              <span className="text-xl">🎹</span>
+            </div>
+            <div>
+              <h4 className="font-bold text-gray-900 text-lg">{stableTitle}</h4>
+              <div className="text-sm text-gray-600">
+                {stableProgression.length} acordes • Notas reais • {stableTimeSignature}
+              </div>
             </div>
           </div>
           
-          <div className="flex items-center gap-2 text-xs">
-            {showChordSymbols && (
-              <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                🎵 Cifras
-              </span>
-            )}
-            {showRomanNumerals && (
-              <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
-                📊 Graus
-              </span>
-            )}
+          <div className="flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-black rounded"></div>
+              <span className="text-gray-600">Semibreves</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-blue-500 rounded"></div>
+              <span className="text-gray-600">Posições reais</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Container da pauta */}
-      <div 
-        ref={containerRef} 
-        className="w-full p-4"
-        style={{ 
-          minHeight: `${height}px`,
-          backgroundColor: backgroundColor 
-        }}
-      />
-
-      {/* Legenda */}
-      <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
-        <div className="text-xs text-gray-600 text-center space-x-4">
-          <span>
-            <strong>Cifras:</strong> Símbolos dos acordes na tonalidade atual
-          </span>
-          <span>•</span>
-          <span>
-            <strong>Graus:</strong> Função harmônica universal (numerais romanos)
-          </span>
-          <span>•</span>
-          <span>
-            <strong>Voicing:</strong> Condução de vozes otimizada
-          </span>
+      {/* Pauta Musical */}
+      <div className="p-4 sm:p-6">
+        <div 
+          ref={svgRef} 
+          className="w-full overflow-x-auto"
+          style={{ minHeight: stableHeight }}
+        />
+        
+        {/* Informações das notas */}
+        <div className="mt-6 pt-4 border-t border-gray-200">
+          <h5 className="font-semibold text-gray-800 mb-3">🎹 Voicings Reais:</h5>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {stableProgression.map((chord, index) => {
+              const voicing = prepareVoicing(chord.voicing);
+              
+              return (
+                <div key={index} className="bg-gray-50 p-3 rounded-lg border">
+                  <div className="font-bold text-sm mb-1">{stableChordSymbols[index] || chord.symbol}</div>
+                  <div className="text-xs text-gray-600 space-y-1">
+                    {voicing.trebleNotes.length > 0 && (
+                      <div>
+                        <span className="font-medium">Sol:</span> {voicing.trebleNotes.map(midiToNoteName).join(', ')}
+                      </div>
+                    )}
+                    {voicing.bassNotes.length > 0 && (
+                      <div>
+                        <span className="font-medium">Fá:</span> {voicing.bassNotes.map(midiToNoteName).join(', ')}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        
+        {/* Rodapé */}
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <div className="text-center text-xs text-gray-500">
+            🎼 Pauta com notas reais do voicing • Linhas suplementares • Responsivo
+          </div>
         </div>
       </div>
     </div>
