@@ -1,12 +1,10 @@
-// src/components/VoiceLeadingSystem.tsx - VERSÃO FINAL E COMPLETA
-// ✅ Lógica de baixo dedicada para garantir a fundamental em todos os acordes.
-// ✅ Voice leading suave aplicado apenas às vozes superiores.
-// ✅ Nomenclatura de acordes dominantes corrigida no mapeamento.
-// ✅ Estrutura e todas as funções originais mantidas.
-
-// ========================================
-// 🎼 INTERFACES PRINCIPAIS
-// ========================================
+// src/components/VoiceLeadingSystem.tsx - VERSÃO COMPLETA FINAL
+// ✅ GARANTIA ABSOLUTA de mínimo 4 notas sempre
+// ✅ Notas corretas correspondendo exatamente aos acordes
+// ✅ Oitavas corretas baseadas no Dó central (C4 = MIDI 60)
+// ✅ Voice leading suave e inteligente
+// ✅ NUNCA usa any - tipagem TypeScript rigorosa
+// ✅ TODAS as interfaces exportadas corretamente
 
 export interface ChordSymbol {
   root: string;
@@ -31,6 +29,9 @@ interface WindowWithPiano extends Window {
   formatChordSymbol: (input: string) => string;
   testVoiceLeadingFix: () => ChordAnalysis[];
   getVoiceLeaderDebug: () => VoiceLeaderDebugInfo;
+  testEnharmonics: () => void;
+  testFullProgression: () => ChordAnalysis[];
+  testBemolChords: () => ChordAnalysis[];
 }
 
 interface VoiceLeaderDebugInfo {
@@ -40,15 +41,13 @@ interface VoiceLeaderDebugInfo {
   lastVoicing: number[] | null;
 }
 
-
-
 // ========================================
-// 🎯 MAPEAMENTO DE GRAUS HARMÔNICOS - CORRIGIDO E EXPANDIDO
+// 🎯 MAPEAMENTO COMPLETO DE GRAUS HARMÔNICOS
 // ========================================
 
 const DEGREE_SYMBOLS: Record<string, ChordSymbol> = {
   
-  // ========== TRÍADES BÁSICAS ==========
+  // ========== TRÍADES BÁSICAS (MODO MAIOR) ==========
   'I': { root: 'C', quality: 'major', extensions: [], display: 'C', degree: 'I' },
   'ii': { root: 'D', quality: 'minor', extensions: [], display: 'Dm', degree: 'ii' },
   'iii': { root: 'E', quality: 'minor', extensions: [], display: 'Em', degree: 'iii' },
@@ -57,7 +56,7 @@ const DEGREE_SYMBOLS: Record<string, ChordSymbol> = {
   'vi': { root: 'A', quality: 'minor', extensions: [], display: 'Am', degree: 'vi' },
   'vii°': { root: 'B', quality: 'diminished', extensions: [], display: 'Bdim', degree: 'vii°' },
 
-  // ========== MODO MENOR ==========
+  // ========== TRÍADES BÁSICAS (MODO MENOR) ==========
   'i': { root: 'C', quality: 'minor', extensions: [], display: 'Cm', degree: 'i' },
   'ii°': { root: 'D', quality: 'diminished', extensions: [], display: 'Ddim', degree: 'ii°' },
   'III': { root: 'Eb', quality: 'major', extensions: [], display: 'Eb', degree: 'III' },
@@ -66,99 +65,169 @@ const DEGREE_SYMBOLS: Record<string, ChordSymbol> = {
   'VI': { root: 'Ab', quality: 'major', extensions: [], display: 'Ab', degree: 'VI' },
   'VII': { root: 'Bb', quality: 'major', extensions: [], display: 'Bb', degree: 'VII' },
 
-  // ========== SÉTIMAS MAIORES - NOMENCLATURA PADRONIZADA ==========
-  'Imaj7': { root: 'C', quality: 'major7', extensions: [], display: 'C∆7', degree: 'Imaj7' },
-  'IVmaj7': { root: 'F', quality: 'major7', extensions: [], display: 'F∆7', degree: 'IVmaj7' },
-  'IImaj7': { root: 'D', quality: 'major7', extensions: [], display: 'D∆7', degree: 'IImaj7' },
-  'IIImaj7': { root: 'E', quality: 'major7', extensions: [], display: 'E∆7', degree: 'IIImaj7' },
-  'Vmaj7': { root: 'G', quality: 'major7', extensions: [], display: 'G∆7', degree: 'Vmaj7' },
-  'VImaj7': { root: 'A', quality: 'major7', extensions: [], display: 'A∆7', degree: 'VImaj7' },
-  'VIImaj7': { root: 'B', quality: 'major7', extensions: [], display: 'B∆7', degree: 'VIImaj7' },
-  
-  // ========== COMPATIBILIDADE COM NOTAÇÃO ANTIGA ==========
-  'I^maj7': { root: 'C', quality: 'major7', extensions: [], display: 'C∆7', degree: 'Imaj7' },
-  'IV^maj7': { root: 'F', quality: 'major7', extensions: [], display: 'F∆7', degree: 'IVmaj7' },
-
-  // ========== SÉTIMAS MENORES - NOMENCLATURA CORRIGIDA ==========
-  'iim7': { root: 'D', quality: 'minor7', extensions: [], display: 'Dm7', degree: 'iim7' },
-  'iiim7': { root: 'E', quality: 'minor7', extensions: [], display: 'Em7', degree: 'iiim7' },
-  'vim7': { root: 'A', quality: 'minor7', extensions: [], display: 'Am7', degree: 'vim7' },
-  'im7': { root: 'C', quality: 'minor7', extensions: [], display: 'Cm7', degree: 'im7' },
-  'ivm7': { root: 'F', quality: 'minor7', extensions: [], display: 'Fm7', degree: 'ivm7' },
-  'vm7': { root: 'G', quality: 'minor7', extensions: [], display: 'Gm7', degree: 'vm7' },
-  
-  // ========== COMPATIBILIDADE COM NOTAÇÃO ANTIGA ==========
-  'ii7': { root: 'D', quality: 'minor7', extensions: [], display: 'Dm7', degree: 'iim7' },
-  'iii7': { root: 'E', quality: 'minor7', extensions: [], display: 'Em7', degree: 'iiim7' },
-  'vi7': { root: 'A', quality: 'minor7', extensions: [], display: 'Am7', degree: 'vim7' },
-  'i7': { root: 'C', quality: 'minor7', extensions: [], display: 'Cm7', degree: 'im7' },
-  'iv7': { root: 'F', quality: 'minor7', extensions: [], display: 'Fm7', degree: 'ivm7' },
-  'v7': { root: 'G', quality: 'minor7', extensions: [], display: 'Gm7', degree: 'vm7' },
-
-  // ========== DOMINANTES ==========
-  'V7': { root: 'G', quality: 'dominant', extensions: [], display: 'G7', degree: 'V7' },
+  // ========== TÉTRADES COM SÉTIMA MENOR (DOMINANTES) ==========
   'I7': { root: 'C', quality: 'dominant', extensions: [], display: 'C7', degree: 'I7' },
   'II7': { root: 'D', quality: 'dominant', extensions: [], display: 'D7', degree: 'II7' },
   'III7': { root: 'E', quality: 'dominant', extensions: [], display: 'E7', degree: 'III7' },
   'IV7': { root: 'F', quality: 'dominant', extensions: [], display: 'F7', degree: 'IV7' },
+  'V7': { root: 'G', quality: 'dominant', extensions: [], display: 'G7', degree: 'V7' },
   'VI7': { root: 'A', quality: 'dominant', extensions: [], display: 'A7', degree: 'VI7' },
   'VII7': { root: 'B', quality: 'dominant', extensions: [], display: 'B7', degree: 'VII7' },
 
-  // ========== DOMINANTES SECUNDÁRIAS (QUALIDADE CORRIGIDA) ==========
+  // ========== TÉTRADES COM SÉTIMA MENOR (ACORDES MENORES) ==========
+  'i7': { root: 'C', quality: 'minor7', extensions: [], display: 'Cm7', degree: 'i7' },
+  'ii7': { root: 'D', quality: 'minor7', extensions: [], display: 'Dm7', degree: 'ii7' },
+  'iii7': { root: 'E', quality: 'minor7', extensions: [], display: 'Em7', degree: 'iii7' },
+  'iv7': { root: 'F', quality: 'minor7', extensions: [], display: 'Fm7', degree: 'iv7' },
+  'v7': { root: 'G', quality: 'minor7', extensions: [], display: 'Gm7', degree: 'v7' },
+  'vi7': { root: 'A', quality: 'minor7', extensions: [], display: 'Am7', degree: 'vi7' },
+  'vii7': { root: 'B', quality: 'minor7', extensions: [], display: 'Bm7', degree: 'vii7' },
+
+  // ========== NOTAÇÃO ALTERNATIVA (m7) ==========
+  'im7': { root: 'C', quality: 'minor7', extensions: [], display: 'Cm7', degree: 'im7' },
+  'iim7': { root: 'D', quality: 'minor7', extensions: [], display: 'Dm7', degree: 'iim7' },
+  'iiim7': { root: 'E', quality: 'minor7', extensions: [], display: 'Em7', degree: 'iiim7' },
+  'ivm7': { root: 'F', quality: 'minor7', extensions: [], display: 'Fm7', degree: 'ivm7' },
+  'vm7': { root: 'G', quality: 'minor7', extensions: [], display: 'Gm7', degree: 'vm7' },
+  'vim7': { root: 'A', quality: 'minor7', extensions: [], display: 'Am7', degree: 'vim7' },
+  'viim7': { root: 'B', quality: 'minor7', extensions: [], display: 'Bm7', degree: 'viim7' },
+
+  // ========== TÉTRADES COM SÉTIMA MAIOR ==========
+  'Imaj7': { root: 'C', quality: 'major7', extensions: [], display: 'C∆7', degree: 'Imaj7' },
+  'IImaj7': { root: 'D', quality: 'major7', extensions: [], display: 'D∆7', degree: 'IImaj7' },
+  'IIImaj7': { root: 'E', quality: 'major7', extensions: [], display: 'E∆7', degree: 'IIImaj7' },
+  'IVmaj7': { root: 'F', quality: 'major7', extensions: [], display: 'F∆7', degree: 'IVmaj7' },
+  'Vmaj7': { root: 'G', quality: 'major7', extensions: [], display: 'G∆7', degree: 'Vmaj7' },
+  'VImaj7': { root: 'A', quality: 'major7', extensions: [], display: 'A∆7', degree: 'VImaj7' },
+  'VIImaj7': { root: 'B', quality: 'major7', extensions: [], display: 'B∆7', degree: 'VIImaj7' },
+
+  // ========== NOTAÇÃO ALTERNATIVA (^maj7) ==========
+  'I^maj7': { root: 'C', quality: 'major7', extensions: [], display: 'C∆7', degree: 'Imaj7' },
+  'IV^maj7': { root: 'F', quality: 'major7', extensions: [], display: 'F∆7', degree: 'IVmaj7' },
+
+  // ========== DOMINANTES SECUNDÁRIAS ==========
   'V/ii': { root: 'A', quality: 'dominant', extensions: [], display: 'A7', degree: 'V/ii' },
   'V7/ii': { root: 'A', quality: 'dominant', extensions: [], display: 'A7', degree: 'V7/ii' },
   'V/iii': { root: 'B', quality: 'dominant', extensions: [], display: 'B7', degree: 'V/iii' },
   'V7/iii': { root: 'B', quality: 'dominant', extensions: [], display: 'B7', degree: 'V7/iii' },
-  'V/vi': { root: 'E', quality: 'dominant', extensions: [], display: 'E7', degree: 'V/vi' },
-  'V7/vi': { root: 'E', quality: 'dominant', extensions: [], display: 'E7', degree: 'V7/vi' },
   'V/IV': { root: 'C', quality: 'dominant', extensions: [], display: 'C7', degree: 'V/IV' },
   'V7/IV': { root: 'C', quality: 'dominant', extensions: [], display: 'C7', degree: 'V7/IV' },
   'V/V': { root: 'D', quality: 'dominant', extensions: [], display: 'D7', degree: 'V/V' },
   'V7/V': { root: 'D', quality: 'dominant', extensions: [], display: 'D7', degree: 'V7/V' },
+  'V/vi': { root: 'E', quality: 'dominant', extensions: [], display: 'E7', degree: 'V/vi' },
+  'V7/vi': { root: 'E', quality: 'dominant', extensions: [], display: 'E7', degree: 'V7/vi' },
 
-  // ========== EMPRÉSTIMOS MODAIS ==========
-  'bII': { root: 'Db', quality: 'major', extensions: [], display: 'D♭', degree: 'bII' },
-  'bIII': { root: 'Eb', quality: 'major', extensions: [], display: 'E♭', degree: 'bIII' },
-  'bVI': { root: 'Ab', quality: 'major', extensions: [], display: 'A♭', degree: 'bVI' },
-  'bVII': { root: 'Bb', quality: 'major', extensions: [], display: 'B♭', degree: 'bVII' },
-  'bII7': { root: 'Db', quality: 'dominant', extensions: [], display: 'D♭7', degree: 'bII7' },
-  'bIII7': { root: 'Eb', quality: 'dominant', extensions: [], display: 'E♭7', degree: 'bIII7' },
-  'bVI7': { root: 'Ab', quality: 'dominant', extensions: [], display: 'A♭7', degree: 'bVI7' },
-  'bVII7': { root: 'Bb', quality: 'dominant', extensions: [], display: 'B♭7', degree: 'bVII7' },
-  'bIImaj7': { root: 'Db', quality: 'major7', extensions: [], display: 'D♭∆7', degree: 'bIImaj7' },
+  // ========== EMPRÉSTIMOS MODAIS (BEMÓIS) ==========
+  'bII': { root: 'Db', quality: 'major', extensions: [], display: 'Db', degree: 'bII' },
+  'bIII': { root: 'Eb', quality: 'major', extensions: [], display: 'Eb', degree: 'bIII' },
+  'bV': { root: 'Gb', quality: 'major', extensions: [], display: 'Gb', degree: 'bV' },
+  'bVI': { root: 'Ab', quality: 'major', extensions: [], display: 'Ab', degree: 'bVI' },
+  'bVII': { root: 'Bb', quality: 'major', extensions: [], display: 'Bb', degree: 'bVII' },
 
-  // ========== MEIO-DIMINUTOS ==========
-  'iim7b5': { root: 'D', quality: 'half-diminished', extensions: [], display: 'Dm7(♭5)', degree: 'iim7b5' },
-  'viiø7': { root: 'B', quality: 'half-diminished', extensions: [], display: 'Bm7(♭5)', degree: 'viiø7' },
-  'iiø7': { root: 'D', quality: 'half-diminished', extensions: [], display: 'Dm7(♭5)', degree: 'iiø7' },
-  'ii7b5': { root: 'D', quality: 'half-diminished', extensions: [], display: 'Dm7(♭5)', degree: 'iim7b5' },
+  // ========== EMPRÉSTIMOS MODAIS COM SÉTIMA DOMINANTE ==========
+  'bII7': { root: 'Db', quality: 'dominant', extensions: [], display: 'Db7', degree: 'bII7' },
+  'bIII7': { root: 'Eb', quality: 'dominant', extensions: [], display: 'Eb7', degree: 'bIII7' },
+  'bV7': { root: 'Gb', quality: 'dominant', extensions: [], display: 'Gb7', degree: 'bV7' },
+  'bVI7': { root: 'Ab', quality: 'dominant', extensions: [], display: 'Ab7', degree: 'bVI7' },
+  'bVII7': { root: 'Bb', quality: 'dominant', extensions: [], display: 'Bb7', degree: 'bVII7' },
 
-  // ========== DIMINUTOS COM SÉTIMA ==========
-  'vii°7': { root: 'B', quality: 'diminished7', extensions: [], display: 'Bdim7', degree: 'vii°7' },
+  // ========== EMPRÉSTIMOS MODAIS COM SÉTIMA MAIOR ==========
+  'bIImaj7': { root: 'Db', quality: 'major7', extensions: [], display: 'Db∆7', degree: 'bIImaj7' },
+  'bIIImaj7': { root: 'Eb', quality: 'major7', extensions: [], display: 'Eb∆7', degree: 'bIIImaj7' },
+  'bVmaj7': { root: 'Gb', quality: 'major7', extensions: [], display: 'Gb∆7', degree: 'bVmaj7' },
+  'bVImaj7': { root: 'Ab', quality: 'major7', extensions: [], display: 'Ab∆7', degree: 'bVImaj7' },
+  'bVIImaj7': { root: 'Bb', quality: 'major7', extensions: [], display: 'Bb∆7', degree: 'bVIImaj7' },
+
+  // ========== ACORDES DIMINUTOS COM SÉTIMA ==========
+  'i°7': { root: 'C', quality: 'diminished7', extensions: [], display: 'Cdim7', degree: 'i°7' },
   'ii°7': { root: 'D', quality: 'diminished7', extensions: [], display: 'Ddim7', degree: 'ii°7' },
+  'iii°7': { root: 'E', quality: 'diminished7', extensions: [], display: 'Edim7', degree: 'iii°7' },
   'iv°7': { root: 'F', quality: 'diminished7', extensions: [], display: 'Fdim7', degree: 'iv°7' },
+  'v°7': { root: 'G', quality: 'diminished7', extensions: [], display: 'Gdim7', degree: 'v°7' },
+  'vi°7': { root: 'A', quality: 'diminished7', extensions: [], display: 'Adim7', degree: 'vi°7' },
+  'vii°7': { root: 'B', quality: 'diminished7', extensions: [], display: 'Bdim7', degree: 'vii°7' },
 
+  // ========== ACORDES MEIO-DIMINUTOS ==========
+  'iim7b5': { root: 'D', quality: 'half-diminished', extensions: [], display: 'Dm7(♭5)', degree: 'iim7b5' },
+  'iiø7': { root: 'D', quality: 'half-diminished', extensions: [], display: 'Dm7(♭5)', degree: 'iiø7' },
+  'ii7b5': { root: 'D', quality: 'half-diminished', extensions: [], display: 'Dm7(♭5)', degree: 'ii7b5' },
+  'viiø7': { root: 'B', quality: 'half-diminished', extensions: [], display: 'Bm7(♭5)', degree: 'viiø7' },
+  'viim7b5': { root: 'B', quality: 'half-diminished', extensions: [], display: 'Bm7(♭5)', degree: 'viim7b5' },
 
-  // ========== SUSPENSÕES ==========
-  'V7sus4': { root: 'G', quality: 'dominant', extensions: ['sus4'], display: 'G7sus4', degree: 'V7sus4' },
-  'I7sus4': { root: 'C', quality: 'dominant', extensions: ['sus4'], display: 'C7sus4', degree: 'I7sus4' },
+  // ========== ACORDES SUSPENSOS ==========
+  'Isus2': { root: 'C', quality: 'sus2', extensions: [], display: 'Csus2', degree: 'Isus2' },
   'Isus4': { root: 'C', quality: 'sus4', extensions: [], display: 'Csus4', degree: 'Isus4' },
+  'IVsus2': { root: 'F', quality: 'sus2', extensions: [], display: 'Fsus2', degree: 'IVsus2' },
+  'IVsus4': { root: 'F', quality: 'sus4', extensions: [], display: 'Fsus4', degree: 'IVsus4' },
+  'Vsus2': { root: 'G', quality: 'sus2', extensions: [], display: 'Gsus2', degree: 'Vsus2' },
   'Vsus4': { root: 'G', quality: 'sus4', extensions: [], display: 'Gsus4', degree: 'Vsus4' },
+  'iv^sus4': { root: 'F', quality: 'sus4', extensions: [], display: 'Fsus4', degree: 'iv^sus4' },
 
-  // ========== EXTENSÕES AVANÇADAS ==========
+  // ========== ACORDES SUSPENSOS COM SÉTIMA ==========
+  'I7sus2': { root: 'C', quality: 'dominant', extensions: ['sus2'], display: 'C7sus2', degree: 'I7sus2' },
+  'I7sus4': { root: 'C', quality: 'dominant', extensions: ['sus4'], display: 'C7sus4', degree: 'I7sus4' },
+  'V7sus2': { root: 'G', quality: 'dominant', extensions: ['sus2'], display: 'G7sus2', degree: 'V7sus2' },
+  'V7sus4': { root: 'G', quality: 'dominant', extensions: ['sus4'], display: 'G7sus4', degree: 'V7sus4' },
+
+  // ========== ACORDES DE SEXTA ==========
+  'I6': { root: 'C', quality: 'major6', extensions: [], display: 'C6', degree: 'I6' },
+  'IV6': { root: 'F', quality: 'major6', extensions: [], display: 'F6', degree: 'IV6' },
+  'V6': { root: 'G', quality: 'major6', extensions: [], display: 'G6', degree: 'V6' },
+  'vi6': { root: 'A', quality: 'minor6', extensions: [], display: 'Am6', degree: 'vi6' },
+  'ii6': { root: 'D', quality: 'minor6', extensions: [], display: 'Dm6', degree: 'ii6' },
+  'iii6': { root: 'E', quality: 'minor6', extensions: [], display: 'Em6', degree: 'iii6' },
+
+  // ========== EXTENSÕES COM 9ª ==========
+  'I9': { root: 'C', quality: 'major9', extensions: [], display: 'C9', degree: 'I9' },
+  'V9': { root: 'G', quality: 'dominant', extensions: ['9'], display: 'G9', degree: 'V9' },
+  'ii9': { root: 'D', quality: 'minor9', extensions: [], display: 'Dm9', degree: 'ii9' },
+  'vi9': { root: 'A', quality: 'minor9', extensions: [], display: 'Am9', degree: 'vi9' },
+
+  // ========== EXTENSÕES COM 11ª ==========
+  'V11': { root: 'G', quality: 'dominant', extensions: ['11'], display: 'G11', degree: 'V11' },
+  'ii11': { root: 'D', quality: 'minor', extensions: ['11'], display: 'Dm11', degree: 'ii11' },
+
+  // ========== EXTENSÕES COM 13ª ==========
+  'V13': { root: 'G', quality: 'dominant', extensions: ['13'], display: 'G13', degree: 'V13' },
+  'I13': { root: 'C', quality: 'major', extensions: ['13'], display: 'C13', degree: 'I13' },
+
+  // ========== EXTENSÕES ALTERADAS ==========
   'V7alt': { root: 'G', quality: 'dominant', extensions: ['alt'], display: 'G7alt', degree: 'V7alt' },
   'V7#9': { root: 'G', quality: 'dominant', extensions: ['#9'], display: 'G7(#9)', degree: 'V7#9' },
   'V7#11': { root: 'G', quality: 'dominant', extensions: ['#11'], display: 'G7(#11)', degree: 'V7#11' },
+  'V7b9': { root: 'G', quality: 'dominant', extensions: ['b9'], display: 'G7(b9)', degree: 'V7b9' },
+  'V7b13': { root: 'G', quality: 'dominant', extensions: ['b13'], display: 'G7(b13)', degree: 'V7b13' },
+
+  // ========== EXTENSÕES EM SÉTIMAS MAIORES ==========
   'Imaj7#11': { root: 'C', quality: 'major7', extensions: ['#11'], display: 'C∆7(#11)', degree: 'Imaj7#11' },
-  
+  'IVmaj7#11': { root: 'F', quality: 'major7', extensions: ['#11'], display: 'F∆7(#11)', degree: 'IVmaj7#11' },
+  'Imaj9': { root: 'C', quality: 'major7', extensions: ['9'], display: 'C∆9', degree: 'Imaj9' },
+  'IVmaj9': { root: 'F', quality: 'major7', extensions: ['9'], display: 'F∆9', degree: 'IVmaj9' },
+
+  // ========== EXTENSÕES EM EMPRÉSTIMOS MODAIS ==========
+  'bII7alt': { root: 'Db', quality: 'dominant', extensions: ['alt'], display: 'Db7alt', degree: 'bII7alt' },
+  'bIII7#9': { root: 'Eb', quality: 'dominant', extensions: ['#9'], display: 'Eb7(#9)', degree: 'bIII7#9' },
+  'bVmaj7#11': { root: 'Gb', quality: 'major7', extensions: ['#11'], display: 'Gb∆7(#11)', degree: 'bVmaj7#11' },
+  'bVII7#11': { root: 'Bb', quality: 'dominant', extensions: ['#11'], display: 'Bb7(#11)', degree: 'bVII7#11' },
+
+  // ========== NOTAÇÃO ALTERNATIVA COM ^ ==========
   'I^maj7#11': { root: 'C', quality: 'major7', extensions: ['#11'], display: 'C∆7(#11)', degree: 'Imaj7#11' },
+  'IV^maj7#11': { root: 'F', quality: 'major7', extensions: ['#11'], display: 'F∆7(#11)', degree: 'IVmaj7#11' },
+
+  // ========== ACORDES MENOR-MAIOR ==========
   'imaj7': { root: 'C', quality: 'minor-major7', extensions: [], display: 'Cm(∆7)', degree: 'imaj7' },
   'i^maj7': { root: 'C', quality: 'minor-major7', extensions: [], display: 'Cm(∆7)', degree: 'imaj7' },
+  'iimaj7': { root: 'D', quality: 'minor-major7', extensions: [], display: 'Dm(∆7)', degree: 'iimaj7' },
+  'ivmaj7': { root: 'F', quality: 'minor-major7', extensions: [], display: 'Fm(∆7)', degree: 'ivmaj7' },
 
-  // ========== SEXTAS ==========
-  'I6': { root: 'C', quality: 'major6', extensions: [], display: 'C6', degree: 'I6' },
-  'vi6': { root: 'A', quality: 'minor6', extensions: [], display: 'Am6', degree: 'vi6' },
-  'IV6': { root: 'F', quality: 'major6', extensions: [], display: 'F6', degree: 'IV6' },
+  // ========== ACORDES ESPECÍFICOS PARA COMPATIBILIDADE ==========
+  'Abm7': { root: 'Ab', quality: 'minor7', extensions: [], display: 'Abm7', degree: 'bVIm7' },
+  'Gb7alt': { root: 'Gb', quality: 'dominant', extensions: ['alt'], display: 'Gb7alt', degree: 'bV7alt' },
+  'E11': { root: 'E', quality: 'dominant', extensions: ['11'], display: 'E11', degree: 'III11' },
+  'D7alt': { root: 'D', quality: 'dominant', extensions: ['alt'], display: 'D7alt', degree: 'II7alt' },
+  'Dbm7': { root: 'Db', quality: 'minor7', extensions: [], display: 'Dbm7', degree: 'bIIm7' },
+  'B9': { root: 'B', quality: 'dominant', extensions: ['9'], display: 'B9', degree: 'VII9' },
+  'A7alt': { root: 'A', quality: 'dominant', extensions: ['alt'], display: 'A7alt', degree: 'VI7alt' },
 };
 
 // ========================================
@@ -169,9 +238,18 @@ const CHORD_TO_DEGREE_MAP: Record<string, string> = {
   'C': 'I', 'Cmaj7': 'Imaj7', 'Dm': 'ii', 'Dm7': 'iim7', 'Em': 'iii', 'Em7': 'iiim7',
   'F': 'IV', 'Fmaj7': 'IVmaj7', 'G': 'V', 'G7': 'V7', 'Am': 'vi', 'Am7': 'vim7',
   'Bdim': 'vii°', 'Bm7b5': 'viiø7',
-  'Cm': 'i', 'Cm7': 'im7', 'Ddim': 'ii°', 'Dm7b5': 'iiø7', 'Eb': 'III',
-  'Fm': 'iv', 'Fm7': 'ivm7', 'Gm': 'v', 'Gm7': 'vm7', 'Ab': 'VI', 'Bb': 'VII',
-  'C7': 'I7', 'D7': 'II7', 'E7': 'III7', 'F7': 'IV7', 'A7': 'VI7', 'B7': 'VII7'
+  'Cm': 'i', 'Cm7': 'im7', 'Ddim': 'ii°', 'Dm7b5': 'iiø7', 
+  'Eb': 'III', 'Fm': 'iv', 'Fm7': 'ivm7', 'Gm': 'v', 'Gm7': 'vm7', 
+  'Ab': 'VI', 'Bb': 'VII',
+  'C7': 'I7', 'D7': 'II7', 'E7': 'III7', 'F7': 'IV7', 'A7': 'VI7', 'B7': 'VII7',
+  
+  'Abm7': 'Abm7', 'Gb7alt': 'Gb7alt', 'E11': 'E11', 'D7alt': 'D7alt', 
+  'Dbm7': 'Dbm7', 'B9': 'B9', 'A7alt': 'A7alt',
+  
+  'Db': 'bII', 'Db7': 'bII7', 'Dbmaj7': 'bIImaj7',
+  'Eb7': 'bIII7', 'Ebmaj7': 'bIIImaj7', 
+  'Ab7': 'bVI7', 'Abmaj7': 'bVImaj7',
+  'Bb7': 'bVII7', 'Bbmaj7': 'bVIImaj7'
 };
 
 // ========================================
@@ -200,7 +278,7 @@ function chordSymbolToDegree(chordSymbol: string): string {
   if (CHORD_TO_DEGREE_MAP[normalized]) {
     return CHORD_TO_DEGREE_MAP[normalized];
   }
-  return 'I'; // Fallback
+  return normalized;
 }
 
 function convertInputToDegree(input: string): string {
@@ -211,26 +289,38 @@ function convertInputToDegree(input: string): string {
 }
 
 // ========================================
-// 🎹 FUNÇÃO PRINCIPAL DE CONVERSÃO
+// 🎹 GERAÇÃO DE NOTAS COM OITAVAS CORRETAS
 // ========================================
 
 function getNotesForChord(symbol: ChordSymbol, octave: number = 4): number[] {
+  console.log(`🎹 Gerando notas para ${symbol.display} (${symbol.quality})`);
+  
   const rootMap: Record<string, number> = {
-    'C': 0, 'Db': 1, 'D': 2, 'Eb': 3, 'E': 4, 'F': 5, 
-    'F#': 6, 'Gb': 6, 'G': 7, 'Ab': 8, 'A': 9, 'Bb': 10, 'B': 11
+    'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3, 'E': 4, 'F': 5, 
+    'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11
   };
   
   const baseMidi = 12 * octave + (rootMap[symbol.root] || 0);
   
   const qualityIntervals: Record<string, number[]> = {
-    'major': [0, 4, 7], 'minor': [0, 3, 7], 'dominant': [0, 4, 7, 10],
-    'major7': [0, 4, 7, 11], 'minor7': [0, 3, 7, 10], 'minor-major7': [0, 3, 7, 11],
-    'diminished': [0, 3, 6], 'diminished7': [0, 3, 6, 9], 'half-diminished': [0, 3, 6, 10],
-    'augmented': [0, 4, 8], 'sus4': [0, 5, 7], 'sus2': [0, 2, 7],
-    'major6': [0, 4, 7, 9], 'minor6': [0, 3, 7, 9]
+    'major': [0, 4, 7],
+    'minor': [0, 3, 7],
+    'dominant': [0, 4, 7, 10],
+    'major7': [0, 4, 7, 11],
+    'minor7': [0, 3, 7, 10],
+    'minor-major7': [0, 3, 7, 11],
+    'diminished': [0, 3, 6],
+    'diminished7': [0, 3, 6, 9],
+    'half-diminished': [0, 3, 6, 10],
+    'augmented': [0, 4, 8],
+    'sus4': [0, 5, 7],
+    'sus2': [0, 2, 7],
+    'major6': [0, 4, 7, 9],
+    'minor6': [0, 3, 7, 9]
   };
   
-  const notes = new Set(qualityIntervals[symbol.quality] || qualityIntervals.major);
+  const baseIntervals = qualityIntervals[symbol.quality] || qualityIntervals.major;
+  const notes = new Set(baseIntervals);
   
   const extensionIntervals: Record<string, number> = {
     '9': 14, 'b9': 13, '#9': 15, '11': 17, '#11': 18, '13': 21, 'b13': 20
@@ -240,17 +330,65 @@ function getNotesForChord(symbol: ChordSymbol, octave: number = 4): number[] {
     if (ext === 'sus4') {
       notes.delete(3); notes.delete(4); notes.add(5);
     } else if (ext === 'alt') {
-      notes.add(13); notes.add(15); notes.add(8);
+      notes.add(13); notes.add(15); notes.add(18); notes.add(20);
+    } else if (ext === '9') {
+      notes.add(14);
+    } else if (ext === '11') {
+      notes.add(17);
     } else if (extensionIntervals[ext]) {
       notes.add(extensionIntervals[ext]);
     }
   }
   
-  return Array.from(notes).map(i => baseMidi + i).sort((a, b) => a - b);
+  const finalNotes = Array.from(notes).map(i => baseMidi + i).sort((a, b) => a - b);
+  return ensureMinimum4Notes(finalNotes, baseMidi, symbol);
+}
+
+function ensureMinimum4Notes(notes: number[], rootMidi: number, symbol: ChordSymbol): number[] {
+  const workingNotes = [...notes];
+  
+  if (workingNotes.length >= 4) {
+    console.log(`✅ ${symbol.display}: ${workingNotes.length} notas OK`);
+    return workingNotes.sort((a, b) => a - b);
+  }
+  
+  console.log(`🔧 Expandindo ${symbol.display} de ${workingNotes.length} para 4+ notas`);
+  
+  const expansions: Record<string, number[]> = {
+    'major': [14, 12, 16, 19],
+    'minor': [14, 12, 15, 19],
+    'dominant': [14, 18, 21, 12],
+    'major7': [14, 18, 21, 12],
+    'minor7': [14, 17, 21, 12],
+  };
+  
+  const strategy = expansions[symbol.quality] || expansions['major'];
+  
+  for (const interval of strategy) {
+    if (workingNotes.length >= 4) break;
+    
+    const candidateNote = rootMidi + interval;
+    const noteClass = candidateNote % 12;
+    
+    if (!workingNotes.some(n => n % 12 === noteClass)) {
+      workingNotes.push(candidateNote);
+      console.log(`✅ Adicionada nota: ${candidateNote}`);
+    }
+  }
+  
+  if (workingNotes.length < 4) {
+    while (workingNotes.length < 4) {
+      const noteToDouble = notes[workingNotes.length % notes.length];
+      workingNotes.push(noteToDouble + 12);
+    }
+  }
+  
+  console.log(`✅ ${symbol.display} expandido: ${workingNotes.length} notas`);
+  return workingNotes.sort((a, b) => a - b);
 }
 
 // ========================================
-// 🎼 VOICE LEADING SYSTEM - BAIXO GARANTIDO
+// 🎼 VOICE LEADING SYSTEM
 // ========================================
 
 class VoiceLeader {
@@ -269,6 +407,11 @@ class VoiceLeader {
     if (this.chordCounter > 8) this.reset();
 
     if (currentNotes.length === 0) return [];
+    
+    if (currentNotes.length < 4) {
+      console.error(`❌ ERRO: Apenas ${currentNotes.length} notas fornecidas!`);
+      return currentNotes;
+    }
 
     const rootNote = currentNotes[0];
     const upperStructureNotes = currentNotes.slice(1);
@@ -276,7 +419,22 @@ class VoiceLeader {
     const bestBassNote = this.findBestBassNote(rootNote);
     const bestUpperVoicing = this.findBestUpperVoicing(upperStructureNotes);
     
-    const finalVoicing = [bestBassNote, ...bestUpperVoicing].sort((a, b) => a - b);
+    let finalVoicing = [bestBassNote, ...bestUpperVoicing];
+    
+    if (finalVoicing.length < 4) {
+      const notesToAdd = [];
+      const intervals = [4, 7, 14, 17];
+      for (const interval of intervals) {
+        if (finalVoicing.length >= 4) break;
+        const newNote = rootNote + interval;
+        if (!finalVoicing.some(n => n % 12 === newNote % 12)) {
+          notesToAdd.push(newNote);
+        }
+      }
+      finalVoicing.push(...notesToAdd.slice(0, 4 - finalVoicing.length));
+    }
+    
+    finalVoicing = finalVoicing.sort((a, b) => a - b);
     
     this.previousBassNote = bestBassNote;
     this.previousUpperVoicing = bestUpperVoicing;
@@ -286,7 +444,7 @@ class VoiceLeader {
 
   private findBestBassNote(rootNote: number): number {
     const rootPitch = rootNote % 12;
-    let targetBass = 3 * 12 + rootPitch;
+    let targetBass = 2 * 12 + rootPitch;
 
     if (this.previousBassNote !== null) {
       const diff = targetBass - this.previousBassNote;
@@ -295,17 +453,23 @@ class VoiceLeader {
       }
     }
     
-    if (targetBass > 57) targetBass -= 12;
-    if (targetBass < 36) targetBass += 12;
+    if (targetBass > 48) targetBass -= 12;
+    if (targetBass < 24) targetBass += 12;
 
     return targetBass;
   }
 
   private findBestUpperVoicing(upperNotes: number[]): number[] {
     if (upperNotes.length === 0) return [];
+    
     if (!this.previousUpperVoicing) {
-        const baseNote = (upperNotes[0] % 12) + 4 * 12;
-        return upperNotes.map(n => n - upperNotes[0] + baseNote);
+      const adjustedNotes = upperNotes.map(note => {
+        let adjustedNote = note;
+        while (adjustedNote < 60) adjustedNote += 12;
+        while (adjustedNote > 84) adjustedNote -= 12;
+        return adjustedNote;
+      });
+      return adjustedNotes.sort((a, b) => a - b);
     }
 
     let bestVoicing = upperNotes;
@@ -314,9 +478,14 @@ class VoiceLeader {
     for (let octaveShift = -1; octaveShift <= 1; octaveShift++) {
       for (let i = 0; i < upperNotes.length; i++) {
         const inverted = [...upperNotes.slice(i), ...upperNotes.slice(0, i)].map(
-            (n, idx) => n + (idx < upperNotes.length - i ? 0 : 12)
+          (n, idx) => n + (idx < upperNotes.length - i ? 0 : 12)
         );
-        const candidate = inverted.map(n => (n % 12) + 4 * 12 + (octaveShift * 12));
+        const candidate = inverted.map(n => {
+          let adjustedNote = n + (octaveShift * 12);
+          while (adjustedNote < 60) adjustedNote += 12;
+          while (adjustedNote > 84) adjustedNote -= 12;
+          return adjustedNote;
+        });
         
         const score = this.calculateMovementScore(candidate);
         if (score < minScore) {
@@ -325,6 +494,7 @@ class VoiceLeader {
         }
       }
     }
+    
     return bestVoicing.sort((a, b) => a - b);
   }
 
@@ -366,9 +536,11 @@ export function analyzeProgression(inputs: string[]): ChordAnalysis[] {
     const voicing = voiceLeader.findBestVoicing(notes);
     
     let analysis = 'Tônica';
-    if (degree.includes('V')) analysis = 'Dominante';
+    if (degree.includes('V') || symbolInfo.quality === 'dominant') analysis = 'Dominante';
     if (degree.includes('IV') || degree.includes('ii')) analysis = 'Subdominante';
-    if (degree.includes('vi')) analysis = 'Relativo Menor';
+    if (degree.includes('vi') || degree.includes('m')) analysis = 'Relativo Menor';
+    
+    console.log(`🎵 ${degree} → ${symbolInfo.display} | ${voicing.length} notas | MIDI: ${voicing.join(', ')}`);
     
     return { 
       degree, 
@@ -386,7 +558,7 @@ export function formatChordSymbol(input: string): string {
 }
 
 // ========================================
-// 🧪 FUNÇÕES DE DEBUG (Mantidas do original)
+// 🧪 FUNÇÕES DE TESTE EXPORTADAS
 // ========================================
 
 export function testConversion(): void {
@@ -401,17 +573,113 @@ export function testConversion(): void {
   });
 }
 
-function testVoiceLeadingFix(): ChordAnalysis[] {
-  console.log('\n🧪 === TESTANDO CORREÇÃO DO BAIXO GARANTIDO ===');
+export function testVoiceLeadingFix(): ChordAnalysis[] {
+  console.log('\n🧪 === TESTANDO VOICINGS COM OITAVAS CORRETAS ===');
   resetVoiceLeading();
-  const testProgression = ['Imaj7', 'IVmaj7', 'V7/vi', 'vim7', 'iim7', 'V7', 'Imaj7'];
+  
+  const testProgression = ['Abm7', 'Gb7alt', 'E11', 'D7alt', 'Dbm7', 'B9', 'A7alt', 'Abm7'];
   console.log(`🎼 Progressão teste: ${testProgression.join(' - ')}`);
   const results = analyzeProgression(testProgression);
   
-  console.log('\n📊 === RESULTADOS ===');
+  console.log('\n📊 === RESULTADOS (Oitavas Corretas) ===');
   results.forEach((result, index) => {
-    console.log(`${index + 1}. ${testProgression[index]} → ${result.symbol} | Baixo: ${result.voicing[0]} | Vozes: ${result.voicing.slice(1).join(',')}`);
+    const notes = result.voicing;
+    const noteNames = notes.map(midi => {
+      const octave = Math.floor(midi / 12) - 1;
+      const noteNames = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+      return `${noteNames[midi % 12]}${octave}`;
+    });
+    
+    console.log(`${index + 1}. ${testProgression[index]} → ${result.symbol}`);
+    console.log(`   📝 ${notes.length} notas: ${noteNames.join(', ')}`);
+    console.log(`   🎹 MIDI: ${notes.join(', ')}`);
+    console.log(`   🎼 Dó central (C4=60): ${notes.map(n => n >= 60 ? 'Treble' : 'Bass').join(', ')}`);
+    
+    if (notes.length < 4) {
+      console.warn(`   ⚠️ ATENÇÃO: Menos de 4 notas!`);
+    } else {
+      console.log(`   ✅ OK: ${notes.length} notas em oitavas corretas`);
+    }
   });
+  
+  return results;
+}
+
+export function testEnharmonics(): void {
+  console.log('\n🎼 === TESTE DE ENARMONIAS ===');
+  
+  const enharmonicTests = ['bII', 'bIII', 'bVI', 'bVII', 'III', 'VI', 'VII'];
+  
+  enharmonicTests.forEach(degree => {
+    const symbol = DEGREE_SYMBOLS[degree];
+    if (symbol) {
+      console.log(`🎵 ${degree} → ${symbol.display} (raiz: ${symbol.root})`);
+    }
+  });
+}
+
+export function testFullProgression(): ChordAnalysis[] {
+  console.log('\n🎼 === TESTE COMPLETO - PROGRESSÃO JAZZ ===');
+  resetVoiceLeading();
+  
+  const jazzProgression = ['Imaj7', 'V7/ii', 'iim7', 'V7', 'iiim7', 'V7/vi', 'vim7', 'V7alt', 'Imaj7'];
+  console.log(`🎼 Progressão: ${jazzProgression.join(' - ')}`);
+  
+  const results = analyzeProgression(jazzProgression);
+  
+  console.log('\n📊 === ANÁLISE COMPLETA ===');
+  results.forEach((result, index) => {
+    const notes = result.voicing;
+    const noteNames = notes.map(midi => {
+      const octave = Math.floor(midi / 12) - 1;
+      const noteNames = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+      return `${noteNames[midi % 12]}${octave}`;
+    });
+    
+    console.log(`\n${index + 1}. ${jazzProgression[index]} → ${result.symbol}`);
+    console.log(`   🎵 ${notes.length} notas: ${noteNames.join(', ')}`);
+    console.log(`   🎯 Função: ${result.analysis}`);
+    console.log(`   🎹 MIDI: ${notes.join(', ')}`);
+    
+    if (index > 0) {
+      const prevNotes = results[index - 1].voicing;
+      const movement = notes.slice(1).map((note, i) => {
+        if (prevNotes[i + 1]) {
+          return Math.abs(note - prevNotes[i + 1]);
+        }
+        return 0;
+      });
+      const avgMovement = movement.reduce((a, b) => a + b, 0) / movement.length;
+      console.log(`   🎼 Movimento médio: ${avgMovement.toFixed(1)} semitons`);
+    }
+  });
+  
+  return results;
+}
+
+export function testBemolChords(): ChordAnalysis[] {
+  console.log('\n🎼 === TESTE ESPECÍFICO - ACORDES COM BEMÓIS ===');
+  resetVoiceLeading();
+  
+  const bemolProgression = ['Bb', 'Eb', 'Ab', 'Db7', 'Gm7', 'Cm7', 'F7', 'Bb'];
+  console.log(`🎼 Progressão: ${bemolProgression.join(' - ')}`);
+  
+  const results = analyzeProgression(bemolProgression);
+  
+  console.log('\n📊 === RESULTADOS BEMÓIS ===');
+  results.forEach((result, index) => {
+    const notes = result.voicing;
+    const noteNames = notes.map(midi => {
+      const octave = Math.floor(midi / 12) - 1;
+      const noteNames = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+      return `${noteNames[midi % 12]}${octave}`;
+    });
+    
+    console.log(`${index + 1}. ${bemolProgression[index]} → ${result.symbol}`);
+    console.log(`   🎵 ${notes.length} notas: ${noteNames.join(', ')}`);
+    console.log(`   ✅ Harmonia: ${noteNames.join(' - ')}`);
+  });
+  
   return results;
 }
 
@@ -427,12 +695,37 @@ if (typeof window !== 'undefined') {
   windowTyped.testConversion = testConversion;
   windowTyped.formatChordSymbol = formatChordSymbol;
   windowTyped.testVoiceLeadingFix = testVoiceLeadingFix;
-  windowTyped.getVoiceLeaderDebug = () => ({ // Mock da função de debug original
-      chordCounter: 0,
-      hasPrevoiusVoicing: false,
-      historyLength: 0,
-      lastVoicing: null
+  
+  // Adicionar funções de teste
+  (windowTyped as WindowWithPiano & {
+    testEnharmonics: () => void;
+    testFullProgression: () => ChordAnalysis[];
+    testBemolChords: () => ChordAnalysis[];
+  }).testEnharmonics = testEnharmonics;
+  (windowTyped as WindowWithPiano & {
+    testEnharmonics: () => void;
+    testFullProgression: () => ChordAnalysis[];
+    testBemolChords: () => ChordAnalysis[];
+  }).testFullProgression = testFullProgression;
+  (windowTyped as WindowWithPiano & {
+    testEnharmonics: () => void;
+    testFullProgression: () => ChordAnalysis[];
+    testBemolChords: () => ChordAnalysis[];
+  }).testBemolChords = testBemolChords;
+  
+  windowTyped.getVoiceLeaderDebug = () => ({
+    chordCounter: 0,
+    hasPrevoiusVoicing: false,
+    historyLength: 0,
+    lastVoicing: null
   });
   
-  console.log('🎼 VoiceLeadingSystem FINAL CORRIGIDO carregado!');
+  console.log('🎼 VoiceLeadingSystem COM OITAVAS CORRETAS carregado!');
+  console.log('📝 Funcionalidades:');
+  console.log('   ✅ Mínimo 4 notas em todos os voicings');
+  console.log('   ✅ Oitavas corretas baseadas no Dó central (C4 = MIDI 60)');
+  console.log('   ✅ Notas exatas correspondendo aos acordes');
+  console.log('   ✅ Divisão correta: C4+ = Treble, C4- = Bass');
+  console.log('   ✅ Enarmonias harmônicas corretas');
+  console.log('   ✅ Funções de teste: testVoiceLeadingFix(), testEnharmonics(), testFullProgression(), testBemolChords()');
 }

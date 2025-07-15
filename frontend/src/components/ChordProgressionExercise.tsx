@@ -1,17 +1,24 @@
-// src/components/ChordProgressionExercise.tsx - VERSÃO CORRIGIDA E OTIMIZADA COM LARGURA TOTAL
+// src/components/ChordProgressionExercise.tsx - VERSÃO COMPLETA E CORRIGIDA
+// ✅ GARANTIR que a análise harmônica use exatamente as mesmas notas MIDI do áudio
+// ✅ ELIMINAR geração duplicada de acordes
+// ✅ SINCRONIZAR 100% áudio, pauta e análise
+// ✅ TIPAGEM TYPESCRIPT RIGOROSA - ZERO ANY
+
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import BeautifulPianoKeyboard from './BeautifulPianoKeyboard';
 import VexFlowMusicalStaff from './VexFlowMusicalStaff';
 import ChordProgressionOptions from './ChordProgressionOptions';
+import { testHarmonicSystem, testBluesOnly } from '@/utils/harmonicSystemTests';
 import { 
   analyzeProgression, 
-  resetVoiceLeading
+  resetVoiceLeading,
+  ChordAnalysis
 } from './VoiceLeadingSystem';
 import { createRandomizedExercise } from '@/utils/keyTransposition';
 
-// ✅ INTERFACES PARA GAMIFICAÇÃO
+// ✅ INTERFACES PARA GAMIFICAÇÃO - SEM ANY
 interface SessionResult {
   exerciseType: string;
   difficulty: string;
@@ -108,7 +115,43 @@ interface Badge {
   unlockedAt: Date;
 }
 
-// ✅ PROGRESS SERVICE
+// ✅ INTERFACE PARA ANÁLISE HARMÔNICA (COMPATÍVEL COM VEXFLOW)
+interface HarmonicAnalysis {
+  symbol: string;
+  degree: string;
+  analysis: string;
+  voicing: number[];
+}
+
+interface ChordProgression {
+  _id: string;
+  name: string;
+  degrees: string[];
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  category: 'pop' | 'jazz' | 'classical' | 'bossa' | 'modal' | 'funk' | 'rock' | 'samba' | 'mpb' | 'blues';
+  mode: 'major' | 'minor';
+  timeSignature: string;
+  tempo: number;
+  description: string;
+  reference?: string;
+  isActive: boolean;
+}
+
+interface TransposedChordProgression extends ChordProgression {
+  chords: string[];
+}
+
+interface ChordProgressionExerciseProps {
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  onComplete?: (result: {
+    correct: boolean;
+    userAnswer: string;
+    expected: string;
+    timeSpent: number;
+  }) => void;
+}
+
+// ✅ PROGRESS SERVICE COM TIPAGEM CORRETA
 class ProgressService {
   private baseUrl: string;
 
@@ -173,51 +216,14 @@ class ProgressService {
 
 const progressService = new ProgressService();
 
-// Interfaces originais
-interface ChordProgression {
-  _id: string;
-  name: string;
-  degrees: string[];
-  difficulty: 'beginner' | 'intermediate' | 'advanced';
-  category: 'pop' | 'jazz' | 'classical' | 'bossa' | 'modal' | 'funk' | 'rock' | 'samba' | 'mpb' | 'blues';
-  mode: 'major' | 'minor';
-  timeSignature: string;
-  tempo: number;
-  description: string;
-  reference?: string;
-  isActive: boolean;
-}
+// ✅ FUNÇÃO PARA FORMATAR PONTOS
+const formatPoints = (points: number): string => {
+  if (points >= 1000000) return `${Math.floor(points/1000000)}M`;
+  if (points >= 1000) return `${Math.floor(points/1000)}k`;
+  return points.toString();
+};
 
-interface TransposedChordProgression extends ChordProgression {
-  chords: string[];
-}
-
-interface HarmonicAnalysis {
-  symbol: string;
-  degree: string;
-  analysis: string;
-  voicing: number[];
-}
-
-interface ChordProgressionExerciseProps {
-  difficulty: 'beginner' | 'intermediate' | 'advanced';
-  onComplete?: (result: {
-    correct: boolean;
-    userAnswer: string;
-    expected: string;
-    timeSpent: number;
-  }) => void;
-}
-
-// ✅ TIPOS PARA FUNÇÕES DO PIANO (window)
-declare global {
-  interface Window {
-    playPianoNote?: (note: string, frequency: number) => Promise<void>;
-    stopPianoNote?: (note: string) => void;
-  }
-}
-
-// Services
+// ✅ SERVICES COM TIPAGEM CORRETA
 class ChordProgressionService {
   private baseUrl: string;
   constructor() {
@@ -257,12 +263,13 @@ class ChordProgressionService {
 
 const chordProgressionService = new ChordProgressionService();
 
-// ✅ FUNÇÃO UTILITÁRIA PARA FORMATAR PONTOS
-const formatPoints = (points: number): string => {
-  if (points >= 1000000) return `${Math.floor(points/1000000)}M`;
-  if (points >= 1000) return `${Math.floor(points/1000)}k`;
-  return points.toString();
-};
+// ✅ TIPOS PARA FUNÇÕES DO PIANO (window)
+declare global {
+  interface Window {
+    playPianoNote?: (note: string, frequency: number) => Promise<void>;
+    stopPianoNote?: (note: string) => void;
+  }
+}
 
 const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
   difficulty,
@@ -291,11 +298,11 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
   // Controle de velocidade
   const [playbackTempo, setPlaybackTempo] = useState<number>(60);
 
-  // Estados para análise harmônica
+  // ✅ ESTADO CRÍTICO: ANÁLISE HARMÔNICA ÚNICA E CENTRALIZADA
   const [harmonicAnalysis, setHarmonicAnalysis] = useState<HarmonicAnalysis[]>([]);
   const [showHarmonicAnalysis, setShowHarmonicAnalysis] = useState<boolean>(false);
 
-  // ✅ ESTADOS PARA GAMIFICAÇÃO
+  // ✅ GAMIFICAÇÃO COM TIPAGEM CORRETA
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [backendResult, setBackendResult] = useState<UpdateProgressResponse | null>(null);
   const [backendError, setBackendError] = useState<string | null>(null);
@@ -305,6 +312,24 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     timeSpent: number;
     timestamp: number;
   }>>([]);
+
+// useEffect temporário para testes (tipagem correta)
+useEffect(() => {
+  if (typeof window !== 'undefined') {
+    // Declarar tipos para window
+    (window as typeof window & {
+      testHarmonicSystem: () => void;
+      testBluesOnly: () => void;
+    }).testHarmonicSystem = testHarmonicSystem;
+    
+    (window as typeof window & {
+      testHarmonicSystem: () => void;
+      testBluesOnly: () => void;
+    }).testBluesOnly = testBluesOnly;
+    
+    console.log('🧪 TESTES CARREGADOS! Digite testHarmonicSystem() no console');
+  }
+}, []);
 
   // ✅ BUSCAR PROGRESSO INICIAL
   useEffect(() => {
@@ -322,6 +347,49 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     fetchProgress();
   }, []);
 
+  // ✅ FUNÇÃO CENTRAL: GERAR ANÁLISE HARMÔNICA ÚNICA
+  const generateHarmonicAnalysis = useCallback((progression: ChordProgression): HarmonicAnalysis[] => {
+    if (!progression) return [];
+
+    console.log('\n🎯 === GERANDO ANÁLISE HARMÔNICA ÚNICA ===');
+    console.log(`📝 Progressão: ${progression.name}`);
+    console.log(`🎼 Graus: ${progression.degrees.join(' - ')}`);
+    console.log(`🔑 Tonalidade: ${currentKey}`);
+    console.log(`🎵 Transposição: ${semitoneOffset} semitons`);
+
+    try {
+      // ✅ USAR O SISTEMA DE VOICE LEADING PARA GERAR AS NOTAS MIDI
+      resetVoiceLeading();
+      const voiceLeadingAnalysis: ChordAnalysis[] = analyzeProgression(progression.degrees);
+      
+      console.log(`✅ VoiceLeading gerou ${voiceLeadingAnalysis.length} acordes`);
+
+      // ✅ CONVERTER PARA FORMATO HARMONICANALYSIS
+      const harmonicAnalysis: HarmonicAnalysis[] = voiceLeadingAnalysis.map((chord, index) => {
+        const transposedVoicing = chord.voicing.map(midi => midi + semitoneOffset);
+        const chordSymbol = transposedChords[index] || chord.symbol;
+
+        console.log(`🎹 Acorde ${index + 1}: ${chord.degree} → ${chordSymbol}`);
+        console.log(`   📊 MIDI original: [${chord.voicing.join(', ')}]`);
+        console.log(`   📊 MIDI transposto: [${transposedVoicing.join(', ')}]`);
+
+        return {
+          symbol: chordSymbol,
+          degree: chord.degree,
+          analysis: chord.analysis,
+          voicing: transposedVoicing
+        };
+      });
+
+      console.log(`✅ Análise harmônica gerada: ${harmonicAnalysis.length} acordes`);
+      return harmonicAnalysis;
+
+    } catch (error) {
+      console.error('❌ Erro ao gerar análise harmônica:', error);
+      return [];
+    }
+  }, [currentKey, semitoneOffset, transposedChords]);
+
   // Funções utilitárias
   const midiToFrequency = useCallback((midi: number): number => {
     return 440 * Math.pow(2, (midi - 69) / 12);
@@ -334,7 +402,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     return `${note}${octave}`;
   }, []);
 
-  // 🎹 FUNÇÃO DE REPRODUÇÃO
+  // ✅ FUNÇÃO DE REPRODUÇÃO CORRIGIDA
   const playProgression = useCallback(async () => {
     if (!currentProgression || !isPianoReady) {
       console.log('🎹 Piano ainda não está pronto ou progressão não definida');
@@ -342,7 +410,6 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     }
 
     setIsPlaying(true);
-    resetVoiceLeading();
 
     try {
       console.log(`🎼 === REPRODUÇÃO INICIADA ===`);
@@ -358,131 +425,37 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
         return;
       }
 
+      // ✅ USAR A ANÁLISE HARMÔNICA ÚNICA JÁ GERADA
+      let analysisToPlay = harmonicAnalysis;
+      
+      // Se ainda não foi gerada, gerar agora
+      if (analysisToPlay.length === 0) {
+        analysisToPlay = generateHarmonicAnalysis(currentProgression);
+        setHarmonicAnalysis(analysisToPlay);
+      }
+
+      console.log(`🎹 Usando análise com ${analysisToPlay.length} acordes`);
+
       const chordDuration = (60000 / playbackTempo) * 1.5;
       const pauseBetweenChords = Math.max(50, chordDuration * 0.05);
       const noteOverlap = chordDuration * 0.92;
-      
-      // 🎼 ANÁLISE HARMÔNICA
-      let analysis: HarmonicAnalysis[] = [];
-      try {
-        analysis = transposedChords.map((chord, index) => {
-          const root = chord.match(/^[A-G][b#]?/)?.[0] || 'C';
-          
-          const noteToMidi: Record<string, number> = {
-            'C': 60, 'C#': 61, 'Db': 61,
-            'D': 62, 'D#': 63, 'Eb': 63,
-            'E': 64,
-            'F': 65, 'F#': 66, 'Gb': 66,
-            'G': 67, 'G#': 68, 'Ab': 68,
-            'A': 69, 'A#': 70, 'Bb': 70,
-            'B': 71
-          };
-          
-          const rootMidi = noteToMidi[root] || 60;
-          
-          // Gerar voicing básico baseado no tipo de acorde
-          let voicing: number[] = [];
-          
-          if (chord.includes('m7♭5') || chord.includes('m7b5')) {
-            voicing = [rootMidi, rootMidi + 3, rootMidi + 6, rootMidi + 10];
-          } else if (chord.includes('dim7')) {
-            voicing = [rootMidi, rootMidi + 3, rootMidi + 6, rootMidi + 9];
-          } else if (chord.includes('maj7') || chord.includes('∆7')) {
-            voicing = [rootMidi, rootMidi + 4, rootMidi + 7, rootMidi + 11];
-          } else if (chord.includes('m7')) {
-            voicing = [rootMidi, rootMidi + 3, rootMidi + 7, rootMidi + 10];
-          } else if (chord.includes('7alt')) {
-            voicing = [rootMidi, rootMidi + 4, rootMidi + 10, rootMidi + 20];
-          } else if (chord.includes('sus4')) {
-            voicing = [rootMidi, rootMidi + 5, rootMidi + 7];
-          } else if (chord.includes('sus2')) {
-            voicing = [rootMidi, rootMidi + 2, rootMidi + 7];
-          } else if (chord.includes('add9')) {
-            voicing = [rootMidi, rootMidi + 4, rootMidi + 7, rootMidi + 14];
-          } else if (chord.includes('13')) {
-            voicing = [rootMidi, rootMidi + 4, rootMidi + 11, rootMidi + 14, rootMidi + 21];
-          } else if (chord.includes('11')) {
-            voicing = [rootMidi, rootMidi + 4, rootMidi + 10, rootMidi + 17];
-          } else if (chord.includes('9')) {
-            voicing = [rootMidi, rootMidi + 4, rootMidi + 10, rootMidi + 14];
-          } else if (chord.includes('7')) {
-            voicing = [rootMidi, rootMidi + 4, rootMidi + 7, rootMidi + 10];
-          } else if (chord.includes('6')) {
-            voicing = [rootMidi, rootMidi + 4, rootMidi + 7, rootMidi + 9];
-          } else if (chord.includes('m')) {
-            voicing = [rootMidi, rootMidi + 3, rootMidi + 7];
-          } else if (chord.includes('+')) {
-            voicing = [rootMidi, rootMidi + 4, rootMidi + 8];
-          } else {
-            voicing = [rootMidi, rootMidi + 4, rootMidi + 7];
-          }
-          
-          // Garantir que as notas estejam em uma oitava razoável
-          voicing = voicing.map(note => {
-            while (note < 48) note += 12;
-            while (note > 84) note -= 12;
-            return note;
-          });
-          
-          return {
-            symbol: chord,
-            degree: currentProgression.degrees[index] || 'I',
-            analysis: `Acorde ${index + 1}`,
-            voicing: voicing
-          };
-        });
-        
-        console.log(`✅ Análise harmônica gerada para ${analysis.length} acordes`);
-        
-      } catch (analysisError) {
-        console.warn('⚠️ Erro na análise harmônica:', analysisError);
-        
-        try {
-          const originalAnalysis = analyzeProgression(currentProgression.degrees);
-          analysis = originalAnalysis.map(chord => ({
-            ...chord,
-            voicing: chord.voicing.map(note => note + semitoneOffset)
-          }));
-        } catch (fallbackError) {
-          console.warn('⚠️ Erro no fallback:', fallbackError);
-          
-          const simpleFallback = currentProgression.degrees.map((degree, index) => ({
-            symbol: degree,
-            degree: degree,
-            analysis: 'Reprodução simples',
-            voicing: [60 + (index * 4) + semitoneOffset, 64 + (index * 4) + semitoneOffset, 67 + (index * 4) + semitoneOffset]
-          }));
-          
-          analysis = simpleFallback;
-        }
-      }
-
-      console.log(`🔍 === VERIFICAÇÃO DE CONSISTÊNCIA ===`);
-      console.log(`🎵 Visual (transposedChords): ${transposedChords.join(' - ')}`);
-      console.log(`🎹 Áudio (analysis): ${analysis.map(a => a.symbol).join(' - ')}`);
-
-      if (analysis.length === 0) {
-        console.error('❌ Não foi possível gerar análise harmônica');
-        setIsPlaying(false);
-        return;
-      }
 
       const globalActiveNotes: Set<string> = new Set();
 
-      // Reprodução acorde por acorde
-      for (let chordIndex = 0; chordIndex < analysis.length; chordIndex++) {
-        const chordAnalysis: HarmonicAnalysis = analysis[chordIndex];
+      // ✅ REPRODUÇÃO ACORDE POR ACORDE
+      for (let chordIndex = 0; chordIndex < analysisToPlay.length; chordIndex++) {
+        const chordAnalysis = analysisToPlay[chordIndex];
         const voicing: number[] = chordAnalysis.voicing || [60, 64, 67];
 
-        const arpeggioDirection: 'up' | 'down' = Math.random() > 0.92 ? 'down' : 'up';
-        
+        console.log(`🎹 Tocando ${chordAnalysis.symbol}: MIDI [${voicing.join(', ')}]`);
+
         const orderedNotes = [...voicing]
           .map(midi => ({
             midi,
             note: getNoteNameFromMidi(midi),
             frequency: midiToFrequency(midi)
           }))
-          .sort((a, b) => arpeggioDirection === 'up' ? a.midi - b.midi : b.midi - a.midi);
+          .sort((a, b) => a.midi - b.midi);
 
         if (chordIndex > 0) {
           await new Promise<void>(resolve => setTimeout(resolve, pauseBetweenChords));
@@ -540,20 +513,19 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
       console.error('❌ Erro ao tocar progressão:', err);
       setIsPlaying(false);
     }
-  }, [currentProgression, getNoteNameFromMidi, midiToFrequency, isPianoReady, playbackTempo, currentKey, semitoneOffset, transposedChords]);
+  }, [currentProgression, isPianoReady, playbackTempo, currentKey, harmonicAnalysis, generateHarmonicAnalysis, getNoteNameFromMidi, midiToFrequency]);
 
-  // ✅ VERIFICAR RESPOSTA COM GAMIFICAÇÃO
+  // ✅ VERIFICAR RESPOSTA CORRIGIDA
   const checkAnswer = useCallback(async () => {
     if (!currentProgression || !userAnswer) return;
     
     const correct = userAnswer === currentProgression.name;
     const timeSpent = (Date.now() - startTime) / 1000;
 
-    console.log(`🔍 === VERIFICAÇÃO DE RESPOSTA COM GAMIFICAÇÃO ===`);
-    console.log(`📝 Resposta do usuário: "${userAnswer}"`);
-    console.log(`🎯 Resposta esperada: "${currentProgression.name}"`);
+    console.log(`🔍 === VERIFICAÇÃO DE RESPOSTA ===`);
+    console.log(`📝 Resposta: "${userAnswer}"`);
+    console.log(`🎯 Esperado: "${currentProgression.name}"`);
     console.log(`✅ Resultado: ${correct ? 'CORRETO' : 'INCORRETO'}`);
-    console.log(`⏱️ Tempo gasto: ${timeSpent.toFixed(1)}s`);
 
     // ✅ HISTÓRICO DA SESSÃO
     const sessionEntry = {
@@ -563,18 +535,11 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     };
     setSessionHistory(prev => [...prev, sessionEntry]);
 
-    // Gerar análise harmônica para feedback
-    if (!harmonicAnalysis.length) {
-      try {
-        const originalAnalysis = analyzeProgression(currentProgression.degrees);
-        const transposedAnalysis = originalAnalysis.map(chord => ({
-          ...chord,
-          voicing: chord.voicing.map(note => note + semitoneOffset)
-        }));
-        setHarmonicAnalysis(transposedAnalysis);
-      } catch (analysisError) {
-        console.warn('⚠️ Erro na análise harmônica:', analysisError);
-      }
+    // ✅ GARANTIR QUE A ANÁLISE HARMÔNICA ESTÁ GERADA
+    if (harmonicAnalysis.length === 0) {
+      const newAnalysis = generateHarmonicAnalysis(currentProgression);
+      setHarmonicAnalysis(newAnalysis);
+      console.log(`🎼 Análise harmônica gerada para feedback: ${newAnalysis.length} acordes`);
     }
 
     setIsCorrect(correct);
@@ -593,7 +558,7 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
       });
     }
 
-    // ✅ ENVIAR PARA BACKEND (GAMIFICAÇÃO)
+    // ✅ GAMIFICAÇÃO COM TIPAGEM CORRETA
     setIsSubmitting(true);
     setBackendError(null);
     
@@ -624,9 +589,9 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
       setIsSubmitting(false);
     }
 
-  }, [currentProgression, userAnswer, startTime, harmonicAnalysis, onComplete, semitoneOffset, difficulty]);
+  }, [currentProgression, userAnswer, startTime, harmonicAnalysis, generateHarmonicAnalysis, onComplete, difficulty]);
 
-  // Gerar novo exercício
+  // ✅ GERAR NOVO EXERCÍCIO CORRIGIDO
   const generateNewExercise = useCallback(() => {
     if (availableProgressions.length === 0) return;
     
@@ -652,6 +617,10 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
       setTransposedChords(correctTransposed.chords);
     }
     
+    // ✅ LIMPAR ANÁLISE ANTERIOR
+    setHarmonicAnalysis([]);
+    setShowHarmonicAnalysis(false);
+    
     // Atualizar estados
     setCurrentProgression(selectedProgression);
     setCurrentKey(randomizedData.randomKey);
@@ -659,18 +628,27 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
     setOptionsPool(randomizedData.transposedOptions);
     setUserAnswer('');
     setShowResult(false);
-    setShowHarmonicAnalysis(false);
-    setHarmonicAnalysis([]);
     setStartTime(Date.now());
     setBackendResult(null);
     setBackendError(null);
     resetVoiceLeading();
+    
+    console.log(`✅ Novo exercício: ${selectedProgression.name} em ${randomizedData.randomKey}`);
     
   }, [availableProgressions, difficulty]);
 
   const nextQuestion = useCallback(() => {
     generateNewExercise();
   }, [generateNewExercise]);
+
+  // ✅ ATUALIZAR ANÁLISE QUANDO DADOS MUDAREM
+  useEffect(() => {
+    if (currentProgression && transposedChords.length > 0 && currentKey && semitoneOffset !== undefined) {
+      console.log('🔄 Gerando análise harmônica para novo exercício...');
+      const newAnalysis = generateHarmonicAnalysis(currentProgression);
+      setHarmonicAnalysis(newAnalysis);
+    }
+  }, [currentProgression, transposedChords, currentKey, semitoneOffset, generateHarmonicAnalysis]);
 
   // Opções de exercício
   const exerciseOptions = useMemo(() => {
@@ -684,12 +662,12 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
   }, [currentProgression, optionsPool, difficulty]);
 
   // Helper para buscar estatísticas
-  const getProgressionStats = useCallback(() => {
+  const getProgressionStats = useCallback((): ExerciseStats | null => {
     if (!userProgress) return null;
-    return userProgress.exerciseStats.find(stat => stat.exerciseType === 'chord-progressions');
+    return userProgress.exerciseStats.find(stat => stat.exerciseType === 'chord-progressions') || null;
   }, [userProgress]);
 
-  // Inicialização
+  // ✅ INICIALIZAÇÃO CORRIGIDA
   useEffect(() => {
     const initializeExercise = async () => {
       try {
@@ -820,8 +798,6 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
       </div>
     );
   }
-
-  const progressionStats = getProgressionStats();
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
@@ -1054,27 +1030,27 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
               <div className="space-y-3">
                 <div className="flex justify-between items-center py-2 border-b border-gray-100">
                   <span className="text-sm text-gray-600">Total de Sessões</span>
-                  <span className="font-bold">{progressionStats?.totalSessions || 0}</span>
+                  <span className="font-bold">{getProgressionStats()?.totalSessions || 0}</span>
                 </div>
                 
                 <div className="flex justify-between items-center py-2 border-b border-gray-100">
                   <span className="text-sm text-gray-600">Precisão Média</span>
-                  <span className="font-bold">{progressionStats?.averageAccuracy?.toFixed(1) || '0.0'}%</span>
+                  <span className="font-bold">{getProgressionStats()?.averageAccuracy?.toFixed(1) || '0.0'}%</span>
                 </div>
                 
                 <div className="flex justify-between items-center py-2 border-b border-gray-100">
                   <span className="text-sm text-gray-600">Melhor Sequência</span>
-                  <span className="font-bold">{progressionStats?.bestStreak || 0}</span>
+                  <span className="font-bold">{getProgressionStats()?.bestStreak || 0}</span>
                 </div>
                 
                 <div className="flex justify-between items-center py-2">
                   <span className="text-sm text-gray-600">XP Total</span>
-                  <span className="font-bold text-purple-600">{progressionStats?.totalXpEarned || 0}</span>
+                  <span className="font-bold text-purple-600">{getProgressionStats()?.totalXpEarned || 0}</span>
                 </div>
               </div>
             </div>
 
-            {/* FEEDBACK APENAS APÓS RESPONDER */}
+            {/* FEEDBACK APÓS RESPONDER */}
             {showResult && (
               <div className="space-y-4">
                 
@@ -1278,7 +1254,6 @@ const ChordProgressionExercise: React.FC<ChordProgressionExerciseProps> = ({
               timeSignature={currentProgression.timeSignature}
               showChordSymbols={true}
               showRomanNumerals={false}
-              height={300}
               chordSymbols={transposedChords} // ✅ PASSAR CIFRAS CORRETAS
             />
           </div>
