@@ -119,19 +119,46 @@ const VexFlowMusicalStaff: React.FC<VexFlowMusicalStaffProps> = ({
   const detectedKey = useMemo((): string => {
     if (!progression || progression.length === 0) return 'C';
     
+    console.log('🔍 VexFlow detectedKey - Analisando:', title);
+    
     const titleLower = title.toLowerCase();
     
-    if (titleLower.includes('- d') && !titleLower.includes('db')) {
-      return 'D'; // D maior (2 sustenidos)
-    }
-    if (titleLower.includes('- e') && !titleLower.includes('eb')) {
-      return 'E'; // E maior (4 sustenidos)  
-    }
-    if (titleLower.includes('- eb') || titleLower.includes('-eb')) {
-      return 'Eb'; // Eb maior (3 bemóis)
+    // ✅ CORREÇÃO: Detecção mais precisa baseada no título
+    
+    // Procurar por padrão "- [KEY]" no título
+    const keyMatch = title.match(/- ([A-G][b#]?)\s*$/);
+    if (keyMatch) {
+      const extractedKey = keyMatch[1];
+      console.log(`✅ VexFlow: Tonalidade extraída do título: "${extractedKey}"`);
+      return extractedKey;
     }
     
-    return 'D'; // Para "Blues John Scofield Modern - D"
+    // Fallback para detecção manual (método antigo como backup)
+    if (titleLower.includes('- db') || titleLower.includes('-db')) {
+      console.log('✅ VexFlow: Detectado Db (bemol)');
+      return 'Db';
+    }
+    if (titleLower.includes('- d ') || titleLower.includes('-d ') || titleLower.endsWith('- d')) {
+      console.log('✅ VexFlow: Detectado D (natural)');
+      return 'D';
+    }
+    if (titleLower.includes('- eb') || titleLower.includes('-eb')) {
+      console.log('✅ VexFlow: Detectado Eb');
+      return 'Eb';
+    }
+    if (titleLower.includes('- e ') || titleLower.includes('-e ') || titleLower.endsWith('- e')) {
+      console.log('✅ VexFlow: Detectado E');
+      return 'E';
+    }
+    
+    // ✅ CORREÇÃO ESPECÍFICA: Para "Blues Grant Green Bebop - Db"
+    if (titleLower.includes('grant green') && titleLower.includes('db')) {
+      console.log('✅ VexFlow: Grant Green em Db confirmado');
+      return 'Db';
+    }
+    
+    console.log('⚠️ VexFlow: Tonalidade não detectada, usando C como padrão');
+    return 'C';
   }, [progression, title]);
 
   const stableProgression = useMemo(() => progression || [], [progression]);

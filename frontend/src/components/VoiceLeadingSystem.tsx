@@ -138,6 +138,13 @@ const DEGREE_SYMBOLS: Record<string, ChordSymbol> = {
   'bVImaj7': { root: 'Ab', quality: 'major7', extensions: [], display: 'Ab∆7', degree: 'bVImaj7' },
   'bVIImaj7': { root: 'Bb', quality: 'major7', extensions: [], display: 'Bb∆7', degree: 'bVIImaj7' },
 
+  // ========== EMPRÉSTIMOS MODAIS COM ^ E SUS4 ==========
+  'bII^sus4': { root: 'Db', quality: 'sus4', extensions: [], display: 'Dbsus4', degree: 'bII^sus4' },
+  'bIII^sus4': { root: 'Eb', quality: 'sus4', extensions: [], display: 'Ebsus4', degree: 'bIII^sus4' },
+  'bV^sus4': { root: 'Gb', quality: 'sus4', extensions: [], display: 'Gbsus4', degree: 'bV^sus4' },
+  'bVI^sus4': { root: 'Ab', quality: 'sus4', extensions: [], display: 'Absus4', degree: 'bVI^sus4' },
+  'bVII^sus4': { root: 'Bb', quality: 'sus4', extensions: [], display: 'Bbsus4', degree: 'bVII^sus4' },
+
   // ========== ACORDES DIMINUTOS COM SÉTIMA ==========
   'i°7': { root: 'C', quality: 'diminished7', extensions: [], display: 'Cdim7', degree: 'i°7' },
   'ii°7': { root: 'D', quality: 'diminished7', extensions: [], display: 'Ddim7', degree: 'ii°7' },
@@ -168,6 +175,14 @@ const DEGREE_SYMBOLS: Record<string, ChordSymbol> = {
   'I7sus4': { root: 'C', quality: 'dominant', extensions: ['sus4'], display: 'C7sus4', degree: 'I7sus4' },
   'V7sus2': { root: 'G', quality: 'dominant', extensions: ['sus2'], display: 'G7sus2', degree: 'V7sus2' },
   'V7sus4': { root: 'G', quality: 'dominant', extensions: ['sus4'], display: 'G7sus4', degree: 'V7sus4' },
+
+  // ========== ACORDES SUSPENSOS COM ^ ==========
+  'i^sus4': { root: 'C', quality: 'sus4', extensions: [], display: 'Csus4', degree: 'i^sus4' },
+  'ii^sus4': { root: 'D', quality: 'sus4', extensions: [], display: 'Dsus4', degree: 'ii^sus4' },
+  'iii^sus4': { root: 'E', quality: 'sus4', extensions: [], display: 'Esus4', degree: 'iii^sus4' },
+  'v^sus4': { root: 'G', quality: 'sus4', extensions: [], display: 'Gsus4', degree: 'v^sus4' },
+  'vi^sus4': { root: 'A', quality: 'sus4', extensions: [], display: 'Asus4', degree: 'vi^sus4' },
+  'vii^sus4': { root: 'B', quality: 'sus4', extensions: [], display: 'Bsus4', degree: 'vii^sus4' },
 
   // ========== ACORDES DE SEXTA ==========
   'I6': { root: 'C', quality: 'major6', extensions: [], display: 'C6', degree: 'I6' },
@@ -204,11 +219,18 @@ const DEGREE_SYMBOLS: Record<string, ChordSymbol> = {
   'Imaj9': { root: 'C', quality: 'major7', extensions: ['9'], display: 'C∆9', degree: 'Imaj9' },
   'IVmaj9': { root: 'F', quality: 'major7', extensions: ['9'], display: 'F∆9', degree: 'IVmaj9' },
 
-  // ========== EXTENSÕES EM EMPRÉSTIMOS MODAIS ==========
+  // ========== EXTENSÕES EM EMPRÉSTIMOS MODAIS (COMPLETO) ==========
   'bII7alt': { root: 'Db', quality: 'dominant', extensions: ['alt'], display: 'Db7alt', degree: 'bII7alt' },
   'bIII7#9': { root: 'Eb', quality: 'dominant', extensions: ['#9'], display: 'Eb7(#9)', degree: 'bIII7#9' },
-  'bVmaj7#11': { root: 'Gb', quality: 'major7', extensions: ['#11'], display: 'Gb∆7(#11)', degree: 'bVmaj7#11' },
+  'bV7alt': { root: 'Gb', quality: 'dominant', extensions: ['alt'], display: 'Gb7alt', degree: 'bV7alt' },
+  'bVI7#11': { root: 'Ab', quality: 'dominant', extensions: ['#11'], display: 'Ab7(#11)', degree: 'bVI7#11' },
+  'bVII7alt': { root: 'Bb', quality: 'dominant', extensions: ['alt'], display: 'Bb7alt', degree: 'bVII7alt' },
   'bVII7#11': { root: 'Bb', quality: 'dominant', extensions: ['#11'], display: 'Bb7(#11)', degree: 'bVII7#11' },
+  'bVmaj7#11': { root: 'Gb', quality: 'major7', extensions: ['#11'], display: 'Gb∆7(#11)', degree: 'bVmaj7#11' },
+  'bIImaj7#11': { root: 'Db', quality: 'major7', extensions: ['#11'], display: 'Db∆7(#11)', degree: 'bIImaj7#11' },
+  'bIIImaj7#11': { root: 'Eb', quality: 'major7', extensions: ['#11'], display: 'Eb∆7(#11)', degree: 'bIIImaj7#11' },
+  'bVImaj7#11': { root: 'Ab', quality: 'major7', extensions: ['#11'], display: 'Ab∆7(#11)', degree: 'bVImaj7#11' },
+  'bVIImaj7#11': { root: 'Bb', quality: 'major7', extensions: ['#11'], display: 'Bb∆7(#11)', degree: 'bVIImaj7#11' },
 
   // ========== NOTAÇÃO ALTERNATIVA COM ^ ==========
   'I^maj7#11': { root: 'C', quality: 'major7', extensions: ['#11'], display: 'C∆7(#11)', degree: 'Imaj7#11' },
@@ -222,7 +244,6 @@ const DEGREE_SYMBOLS: Record<string, ChordSymbol> = {
 
   // ========== ACORDES ESPECÍFICOS PARA COMPATIBILIDADE ==========
   'Abm7': { root: 'Ab', quality: 'minor7', extensions: [], display: 'Abm7', degree: 'bVIm7' },
-  'Gb7alt': { root: 'Gb', quality: 'dominant', extensions: ['alt'], display: 'Gb7alt', degree: 'bV7alt' },
   'E11': { root: 'E', quality: 'dominant', extensions: ['11'], display: 'E11', degree: 'III11' },
   'D7alt': { root: 'D', quality: 'dominant', extensions: ['alt'], display: 'D7alt', degree: 'II7alt' },
   'Dbm7': { root: 'Db', quality: 'minor7', extensions: [], display: 'Dbm7', degree: 'bIIm7' },
