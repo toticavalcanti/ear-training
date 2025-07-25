@@ -112,7 +112,7 @@ const BeautifulPianoKeyboard: React.FC<BeautifulPianoKeyboardProps> = ({
   // Converter número MIDI para nome da nota
   const getNoteNameFromMidi = useCallback((midiNote: number): string => {
     const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const octave = Math.floor(midiNote / 12) - 1;
+    const octave = Math.floor(midiNote / 12) - 2;
     const note = noteNames[midiNote % 12];
     return `${note}${octave}`;
   }, []);
